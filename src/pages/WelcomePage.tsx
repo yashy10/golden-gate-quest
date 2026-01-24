@@ -1,13 +1,23 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Target, MapPin, Camera, Clock, Sparkles, Mic, Award, ChevronRight } from 'lucide-react';
+import { Target, MapPin, Camera, Clock, Sparkles, Mic, Award, ChevronRight, Download, Share, Plus } from 'lucide-react';
 import GoldenGateLogo from '@/components/GoldenGateLogo';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
 
 const WelcomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { isInstallable, isInstalled, isIOS, promptInstall } = usePWAInstall();
 
   const handleGetStarted = () => {
     navigate('/onboarding');
+  };
+
+  const handleInstall = async () => {
+    if (isIOS) {
+      // Can't programmatically install on iOS, show instructions instead
+      return;
+    }
+    await promptInstall();
   };
 
   return (
@@ -62,6 +72,63 @@ const WelcomePage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {/* Install App Section - Only show if installable and not installed */}
+      {isInstallable && !isInstalled && (
+        <section className="py-8 px-6 bg-primary/5 border-y border-primary/10">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center flex-shrink-0 shadow-lg">
+              <Download className="w-7 h-7 text-primary-foreground" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-foreground mb-1">Install SF Quest</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Add to your home screen for the best experience — works offline!
+              </p>
+              
+              {isIOS ? (
+                <div className="bg-muted rounded-xl p-3">
+                  <p className="text-sm text-foreground font-medium mb-2">To install on iPhone/iPad:</p>
+                  <ol className="text-sm text-muted-foreground space-y-2">
+                    <li className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">1</span>
+                      Tap the <Share className="w-4 h-4 inline mx-1" /> Share button below
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">2</span>
+                      Scroll down and tap <span className="font-medium">"Add to Home Screen"</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">3</span>
+                      Tap <span className="font-medium">"Add"</span> in the top right
+                    </li>
+                  </ol>
+                </div>
+              ) : (
+                <button
+                  onClick={handleInstall}
+                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add to Home Screen
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Already installed indicator */}
+      {isInstalled && (
+        <section className="py-4 px-6 bg-green-500/10 border-y border-green-500/20">
+          <div className="flex items-center justify-center gap-2 text-green-600">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium text-sm">App installed! Open from your home screen.</span>
+          </div>
+        </section>
+      )}
 
       {/* How It Works Section */}
       <section className="py-12 px-6 bg-background">
