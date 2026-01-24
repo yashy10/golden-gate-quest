@@ -156,20 +156,31 @@ const LocationScreen: React.FC = () => {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3">
+            <div className="flex gap-3">
+              <button
+                onClick={handleNavigate}
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-secondary text-secondary-foreground font-semibold"
+              >
+                <Navigation className="w-5 h-5" />
+                Navigate Here
+              </button>
+              <button
+                onClick={() => setShowCamera(true)}
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-button"
+              >
+                <Camera className="w-5 h-5" />
+                Take Photo
+              </button>
+            </div>
             <button
-              onClick={handleNavigate}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-secondary text-secondary-foreground font-semibold"
+              onClick={() => {
+                completeLocation(locationIndex, location.heroImage);
+                navigate(`/discovery/${locationIndex}`);
+              }}
+              className="w-full py-2.5 rounded-xl bg-muted text-muted-foreground font-medium text-sm"
             >
-              <Navigation className="w-5 h-5" />
-              Navigate Here
-            </button>
-            <button
-              onClick={() => setShowCamera(true)}
-              className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-button"
-            >
-              <Camera className="w-5 h-5" />
-              Take Photo
+              Skip (Testing Only)
             </button>
           </div>
         </div>
