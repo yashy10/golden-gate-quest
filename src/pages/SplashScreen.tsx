@@ -14,7 +14,7 @@ const SplashScreen: React.FC = () => {
       if (hasCompletedOnboarding) {
         navigate('/itinerary');
       } else {
-        navigate('/onboarding');
+        navigate('/welcome');
       }
       return;
     }
@@ -31,7 +31,7 @@ const SplashScreen: React.FC = () => {
     setFadeOut(true);
     setTimeout(() => {
       setHasSeenSplash(true);
-      navigate('/onboarding');
+      navigate('/welcome');
     }, 300);
   };
 
