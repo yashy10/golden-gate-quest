@@ -24,6 +24,7 @@ interface QuestState {
   
   // Quest actions
   startQuest: () => void;
+  setQuest: (quest: Quest) => void;
   completeLocation: (index: number, photoUrl?: string) => void;
   visitFoodStop: () => void;
   resetQuest: () => void;
@@ -81,6 +82,13 @@ export const useQuestStore = create<QuestState>()(
         
         const quest = generateQuest(state.selectedCategories, fullPreferences);
         set({ 
+          currentQuest: quest,
+          hasCompletedOnboarding: true,
+        });
+      },
+      
+      setQuest: (quest: Quest) => {
+        set({
           currentQuest: quest,
           hasCompletedOnboarding: true,
         });
