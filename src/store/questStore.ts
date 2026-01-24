@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { Quest, UserPreferences, Category, generateQuest } from '@/data/locations';
 
 interface QuestState {
@@ -14,6 +14,7 @@ interface QuestState {
   // UI state
   hasSeenSplash: boolean;
   hasCompletedOnboarding: boolean;
+  _hasHydrated: boolean;
   
   // Actions
   setHasSeenSplash: (value: boolean) => void;
@@ -30,6 +31,9 @@ interface QuestState {
   // Computed
   getCurrentLocation: () => Quest['locations'][0] | null;
   getProgress: () => { completed: number; total: number; percentage: number };
+  
+  // Hydration
+  setHasHydrated: (state: boolean) => void;
 }
 
 export const useQuestStore = create<QuestState>()(
@@ -41,7 +45,10 @@ export const useQuestStore = create<QuestState>()(
       selectedCategories: [],
       hasSeenSplash: false,
       hasCompletedOnboarding: false,
+      _hasHydrated: false,
 
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
+      
       setHasSeenSplash: (value) => set({ hasSeenSplash: value }),
       
       setOnboardingStep: (step) => set({ onboardingStep: step }),
@@ -145,6 +152,10 @@ export const useQuestStore = create<QuestState>()(
     }),
     {
       name: 'sf-quest-storage',
+      storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );

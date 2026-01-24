@@ -11,7 +11,7 @@ const taglines = [
 
 const SplashScreen: React.FC = () => {
   const navigate = useNavigate();
-  const { hasSeenSplash, setHasSeenSplash, hasCompletedOnboarding } = useQuestStore();
+  const { hasSeenSplash, setHasSeenSplash, hasCompletedOnboarding, _hasHydrated } = useQuestStore();
   const [fadeOut, setFadeOut] = useState(false);
   const [currentTagline, setCurrentTagline] = useState(0);
 
@@ -27,6 +27,9 @@ const SplashScreen: React.FC = () => {
   );
 
   useEffect(() => {
+    // Wait for hydration before making navigation decisions
+    if (!_hasHydrated) return;
+
     // If already seen splash, redirect
     if (hasSeenSplash) {
       if (hasCompletedOnboarding) {
@@ -43,15 +46,30 @@ const SplashScreen: React.FC = () => {
     }, 2000);
 
     return () => clearInterval(taglineInterval);
-  }, [hasSeenSplash, hasCompletedOnboarding, navigate]);
+  }, [hasSeenSplash, hasCompletedOnboarding, navigate, _hasHydrated]);
 
   const handleContinue = () => {
+    if (!_hasHydrated) return;
+    
     setFadeOut(true);
     setTimeout(() => {
       setHasSeenSplash(true);
       navigate('/welcome');
     }, 300);
   };
+
+  // Show loading state while hydrating
+  if (!_hasHydrated) {
+    return (
+      <div className="mobile-container min-h-screen flex flex-col gradient-secondary items-center justify-center">
+        <GoldenGateLogo size={120} />
+        <h1 className="text-4xl font-extrabold text-primary-foreground mt-4">
+          SF Quest
+        </h1>
+        <div className="mt-6 w-8 h-8 border-3 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div
