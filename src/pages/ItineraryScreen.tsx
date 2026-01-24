@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { MapPin, Clock, Route, Menu, Trophy, List, Map } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import LocationCard from '@/components/LocationCard';
@@ -10,14 +10,23 @@ import MapView from '@/components/MapView';
 
 const ItineraryScreen: React.FC = () => {
   const navigate = useNavigate();
-  const { currentQuest, getProgress, visitFoodStop } = useQuestStore();
+  const { _hasHydrated, currentQuest, getProgress, visitFoodStop } = useQuestStore();
   const [foodVisited, setFoodVisited] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
-  if (!currentQuest) {
-    navigate('/');
-    return null;
+  // Avoid redirects before zustand-persist rehydrates
+  if (!_hasHydrated) {
+    return (
+      <div className="mobile-container min-h-screen flex flex-col gradient-secondary items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin mx-auto" />
+          <p className="mt-4 text-primary-foreground/80 text-sm">Loading your quest…</p>
+        </div>
+      </div>
+    );
   }
+
+  if (!currentQuest) return <Navigate to="/" replace />;
 
   const { completed, total, percentage } = getProgress();
   const isQuestComplete = completed === total;
@@ -46,10 +55,7 @@ const ItineraryScreen: React.FC = () => {
   // Insert food stop after position 2
   const foodStopPosition = 2;
 
-  if (isQuestComplete) {
-    navigate('/achievement');
-    return null;
-  }
+  if (isQuestComplete) return <Navigate to="/achievement" replace />;
 
   return (
     <div className="mobile-container min-h-screen bg-background">

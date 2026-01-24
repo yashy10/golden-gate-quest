@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { MapPin, Route, Clock, Camera, Layers, Share2, Download, RotateCcw } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import Confetti from '@/components/Confetti';
@@ -7,7 +7,7 @@ import GoldenGateLogo from '@/components/GoldenGateLogo';
 
 const AchievementScreen: React.FC = () => {
   const navigate = useNavigate();
-  const { currentQuest, resetQuest, getProgress } = useQuestStore();
+  const { _hasHydrated, currentQuest, resetQuest, getProgress } = useQuestStore();
   const [showConfetti, setShowConfetti] = useState(true);
 
   useEffect(() => {
@@ -15,10 +15,15 @@ const AchievementScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!currentQuest) {
-    navigate('/');
-    return null;
+  if (!_hasHydrated) {
+    return (
+      <div className="mobile-container min-h-screen flex flex-col gradient-secondary items-center justify-center">
+        <div className="w-10 h-10 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+      </div>
+    );
   }
+
+  if (!currentQuest) return <Navigate to="/" replace />;
 
   const { total } = getProgress();
   const startTime = currentQuest.progress.startTime || currentQuest.createdAt;
