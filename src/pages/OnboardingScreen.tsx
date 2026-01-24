@@ -116,17 +116,9 @@ const OnboardingScreen: React.FC = () => {
 
   useEffect(() => {
     if (prevStepRef.current !== onboardingStep) {
-      const direction = onboardingStep > prevStepRef.current ? 'left' : 'right';
+      const direction = onboardingStep > prevStepRef.current ? 'right' : 'left';
       setSlideDirection(direction);
-      setIsAnimating(true);
-      
-      const timer = setTimeout(() => {
-        setIsAnimating(false);
-        setSlideDirection(null);
-      }, 300);
-      
       prevStepRef.current = onboardingStep;
-      return () => clearTimeout(timer);
     }
   }, [onboardingStep]);
 
@@ -147,8 +139,8 @@ const OnboardingScreen: React.FC = () => {
   };
 
   const getSlideClass = () => {
-    if (!slideDirection) return 'fade-in-up';
-    return slideDirection === 'left' ? 'slide-in-right' : 'slide-in-left';
+    if (!slideDirection) return '';
+    return slideDirection === 'right' ? 'slide-in-right' : 'slide-in-left';
   };
 
   return (
