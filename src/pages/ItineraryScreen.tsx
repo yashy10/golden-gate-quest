@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Clock, Route, Menu, Trophy } from 'lucide-react';
+import { MapPin, Clock, Route, Menu, Trophy, List, Map } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import LocationCard from '@/components/LocationCard';
 import FoodStopCard from '@/components/FoodStopCard';
 import ProgressRing from '@/components/ProgressRing';
 import GoldenGateLogo from '@/components/GoldenGateLogo';
+import MapView from '@/components/MapView';
 
 const ItineraryScreen: React.FC = () => {
   const navigate = useNavigate();
   const { currentQuest, getProgress, visitFoodStop } = useQuestStore();
   const [foodVisited, setFoodVisited] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   if (!currentQuest) {
     navigate('/');
@@ -72,7 +74,7 @@ const ItineraryScreen: React.FC = () => {
           </button>
         </div>
 
-        {/* Stats bar */}
+        {/* Stats bar with view toggle */}
         <div className="card-quest p-4 mb-4">
           <div className="flex items-center gap-4">
             <ProgressRing progress={percentage} size={60} strokeWidth={5} />
@@ -95,57 +97,91 @@ const ItineraryScreen: React.FC = () => {
                 </span>
               </div>
             </div>
+            
+            {/* View Toggle */}
+            <div className="flex items-center bg-muted rounded-xl p-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-lg transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                aria-label="List view"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('map')}
+                className={`p-2 rounded-lg transition-all ${
+                  viewMode === 'map'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                aria-label="Map view"
+              >
+                <Map className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Locations Timeline */}
-      <div className="px-5 pb-32 space-y-0">
-        {currentQuest.locations.map((location, index) => {
-          const { isCompleted, isUnlocked, isCurrent } = getLocationStatus(index);
-          
-          return (
-            <React.Fragment key={location.id}>
-              <LocationCard
-                location={location}
-                index={index}
-                isUnlocked={isUnlocked}
-                isCompleted={isCompleted}
-                isCurrent={isCurrent}
-                walkingTime={index > 0 ? walkingTimes[index - 1] : undefined}
-                onNavigate={() => handleNavigate(location)}
-                onSelect={() => handleSelectLocation(index)}
-              />
-              
-              {/* Insert food stop after position 2 */}
-              {index === foodStopPosition && (
-                <FoodStopCard
-                  foodStop={currentQuest.foodStop}
-                  isVisited={foodVisited}
-                  onVisit={() => {
-                    setFoodVisited(true);
-                    visitFoodStop();
-                  }}
-                  onSkip={() => setFoodVisited(true)}
+      {/* Content based on view mode */}
+      {viewMode === 'list' ? (
+        /* Locations Timeline */
+        <div className="px-5 pb-32 space-y-0">
+          {currentQuest.locations.map((location, index) => {
+            const { isCompleted, isUnlocked, isCurrent } = getLocationStatus(index);
+            
+            return (
+              <React.Fragment key={location.id}>
+                <LocationCard
+                  location={location}
+                  index={index}
+                  isUnlocked={isUnlocked}
+                  isCompleted={isCompleted}
+                  isCurrent={isCurrent}
+                  walkingTime={index > 0 ? walkingTimes[index - 1] : undefined}
+                  onNavigate={() => handleNavigate(location)}
+                  onSelect={() => handleSelectLocation(index)}
                 />
-              )}
-            </React.Fragment>
-          );
-        })}
+                
+                {/* Insert food stop after position 2 */}
+                {index === foodStopPosition && (
+                  <FoodStopCard
+                    foodStop={currentQuest.foodStop}
+                    isVisited={foodVisited}
+                    onVisit={() => {
+                      setFoodVisited(true);
+                      visitFoodStop();
+                    }}
+                    onSkip={() => setFoodVisited(true)}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
 
-        {/* Final destination marker */}
-        <div className="flex items-center gap-4 pt-4">
-          <div className="w-10 h-10 rounded-full gradient-golden flex items-center justify-center">
-            <Trophy className="w-5 h-5 text-accent-foreground" />
-          </div>
-          <div>
-            <p className="font-semibold text-foreground">Quest Complete!</p>
-            <p className="text-xs text-muted-foreground">
-              Finish all locations to unlock your achievement
-            </p>
+          {/* Final destination marker */}
+          <div className="flex items-center gap-4 pt-4">
+            <div className="w-10 h-10 rounded-full gradient-golden flex items-center justify-center">
+              <Trophy className="w-5 h-5 text-accent-foreground" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground">Quest Complete!</p>
+              <p className="text-xs text-muted-foreground">
+                Finish all locations to unlock your achievement
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* Map View */
+        <div className="px-5 pb-5">
+          <MapView quest={currentQuest} getLocationStatus={getLocationStatus} />
+        </div>
+      )}
     </div>
   );
 };
