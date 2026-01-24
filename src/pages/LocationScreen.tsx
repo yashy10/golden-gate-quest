@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Navigation, Camera, Lightbulb, X } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 
@@ -8,23 +8,25 @@ const LocationScreen: React.FC = () => {
   const { index } = useParams<{ index: string }>();
   const locationIndex = parseInt(index || '0', 10);
   
-  const { currentQuest, completeLocation } = useQuestStore();
+  const { _hasHydrated, currentQuest, completeLocation } = useQuestStore();
   const [showCamera, setShowCamera] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [showFlash, setShowFlash] = useState(false);
 
-  if (!currentQuest) {
-    navigate('/');
-    return null;
+  if (!_hasHydrated) {
+    return (
+      <div className="mobile-container min-h-screen flex flex-col gradient-secondary items-center justify-center">
+        <div className="w-10 h-10 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+      </div>
+    );
   }
+
+  if (!currentQuest) return <Navigate to="/" replace />;
 
   const location = currentQuest.locations[locationIndex];
   const isCompleted = currentQuest.progress.completed[locationIndex];
 
-  if (!location) {
-    navigate('/itinerary');
-    return null;
-  }
+  if (!location) return <Navigate to="/itinerary" replace />;
 
   const handleNavigate = () => {
     const url = `https://www.google.com/maps/dir/?api=1&destination=${location.coordinates.lat},${location.coordinates.lng}`;
@@ -48,10 +50,7 @@ const LocationScreen: React.FC = () => {
     navigate(`/discovery/${locationIndex}`);
   };
 
-  if (isCompleted) {
-    navigate(`/discovery/${locationIndex}`);
-    return null;
-  }
+  if (isCompleted) return <Navigate to={`/discovery/${locationIndex}`} replace />;
 
   return (
     <div className="mobile-container min-h-screen bg-background">

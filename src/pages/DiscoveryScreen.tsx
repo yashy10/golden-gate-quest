@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Mic, ArrowRight } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import PhotoComparison from '@/components/PhotoComparison';
@@ -10,7 +10,7 @@ const DiscoveryScreen: React.FC = () => {
   const { index } = useParams<{ index: string }>();
   const locationIndex = parseInt(index || '0', 10);
   
-  const { currentQuest, getProgress } = useQuestStore();
+  const { _hasHydrated, currentQuest, getProgress } = useQuestStore();
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
@@ -22,20 +22,22 @@ const DiscoveryScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!currentQuest) {
-    navigate('/');
-    return null;
+  if (!_hasHydrated) {
+    return (
+      <div className="mobile-container min-h-screen flex flex-col gradient-secondary items-center justify-center">
+        <div className="w-10 h-10 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+      </div>
+    );
   }
+
+  if (!currentQuest) return <Navigate to="/" replace />;
 
   const location = currentQuest.locations[locationIndex];
   const userPhoto = currentQuest.progress.photos[locationIndex] || location.heroImage;
   const { completed, total } = getProgress();
   const isQuestComplete = completed === total;
 
-  if (!location) {
-    navigate('/itinerary');
-    return null;
-  }
+  if (!location) return <Navigate to="/itinerary" replace />;
 
   const handleContinue = () => {
     if (isQuestComplete) {
