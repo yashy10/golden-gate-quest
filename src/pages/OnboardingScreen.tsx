@@ -390,7 +390,7 @@ const OnboardingScreen: React.FC = () => {
       </div>
 
       {/* Bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent safe-bottom">
+      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent safe-bottom z-20">
         <div className="max-w-md mx-auto">
           <button
             onClick={handleNext}
