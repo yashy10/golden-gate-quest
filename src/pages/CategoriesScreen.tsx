@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Shuffle } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import CategoryCard from '@/components/CategoryCard';
-import { categoryInfo, Category } from '@/data/locations';
+import { categoryInfo, Category, allLocations, foodStops, UserPreferences, Quest } from '@/data/locations';
 import Confetti from '@/components/Confetti';
+import { useToast } from '@/hooks/use-toast';
 
 const CategoriesScreen: React.FC = () => {
   const navigate = useNavigate();
-  const { selectedCategories, toggleCategory, startQuest } = useQuestStore();
+  const { toast } = useToast();
+  const { selectedCategories, toggleCategory, preferences, setQuest } = useQuestStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [showMinConfetti, setShowMinConfetti] = useState(false);
   const [prevCount, setPrevCount] = useState(selectedCategories.length);
@@ -27,11 +29,75 @@ const CategoriesScreen: React.FC = () => {
   const handleGenerate = async () => {
     setIsGenerating(true);
     
-    // Simulate loading
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    startQuest();
-    navigate('/itinerary');
+    try {
+      // Build full preferences
+      const fullPreferences: UserPreferences = {
+        ageRange: preferences.ageRange || '18-30',
+        budget: preferences.budget || 'moderate',
+        startingPoint: preferences.startingPoint || { type: 'current' },
+        timeAvailable: preferences.timeAvailable || 'half-day',
+        mobility: preferences.mobility || 'anywhere',
+        groupSize: preferences.groupSize || 'solo',
+      };
+
+      // Call the AI edge function
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quest`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            categories: selectedCategories,
+            preferences: fullPreferences,
+            allLocations,
+            foodStops,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+          toast({
+            title: "Too many requests",
+            description: "Please wait a moment and try again.",
+            variant: "destructive",
+          });
+        } else if (response.status === 402) {
+          toast({
+            title: "Credits depleted",
+            description: "AI credits need to be topped up.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(errorData.error || 'Failed to generate quest');
+        }
+        setIsGenerating(false);
+        return;
+      }
+
+      const questData = await response.json();
+      
+      // Convert createdAt string back to Date
+      const quest: Quest = {
+        ...questData,
+        createdAt: new Date(questData.createdAt),
+      };
+
+      setQuest(quest);
+      navigate('/itinerary');
+    } catch (error) {
+      console.error('Error generating quest:', error);
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+      setIsGenerating(false);
+    }
   };
 
   const handleSurpriseMe = () => {
