@@ -1,17 +1,15 @@
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Navigation, Camera, Lightbulb, X } from 'lucide-react';
+import { ArrowLeft, Navigation, Camera, Lightbulb } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 
 const LocationScreen: React.FC = () => {
   const navigate = useNavigate();
   const { index } = useParams<{ index: string }>();
   const locationIndex = parseInt(index || '0', 10);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { _hasHydrated, currentQuest, completeLocation } = useQuestStore();
-  const [showCamera, setShowCamera] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [showFlash, setShowFlash] = useState(false);
 
   if (!_hasHydrated) {
     return (
@@ -33,89 +31,35 @@ const LocationScreen: React.FC = () => {
     window.open(url, '_blank');
   };
 
-  const handleCapture = async () => {
-    setIsCapturing(true);
-    setShowFlash(true);
-    
-    // Simulate camera capture
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    setShowFlash(false);
-    
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Complete the location
-    completeLocation(locationIndex, location.heroImage);
-    
-    // Navigate to discovery page
-    navigate(`/discovery/${locationIndex}`);
+  const handleTakePhoto = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Complete the location with captured photo
+      const photoUrl = URL.createObjectURL(file);
+      completeLocation(locationIndex, photoUrl);
+      navigate(`/discovery/${locationIndex}`);
+    }
+    // Reset input so same file can be selected again
+    event.target.value = '';
   };
 
   if (isCompleted) return <Navigate to={`/discovery/${locationIndex}`} replace />;
 
   return (
     <div className="mobile-container min-h-screen bg-background">
-      {/* Camera overlay */}
-      {showCamera && (
-        <div className="fixed inset-0 z-50 bg-black">
-          {/* Simulated camera view */}
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${location.heroImage})` }}
-          />
-          
-          {/* Flash effect */}
-          {showFlash && (
-            <div className="shutter-flash absolute inset-0 bg-white" />
-          )}
-          
-          {/* Camera UI */}
-          <div className="absolute inset-0 flex flex-col">
-            {/* Top bar */}
-            <div className="p-5 flex items-center justify-between">
-              <button
-                onClick={() => setShowCamera(false)}
-                className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center"
-              >
-                <X className="w-5 h-5 text-white" />
-              </button>
-              
-              <div className="px-4 py-2 rounded-full bg-black/50">
-                <p className="text-white text-sm font-medium">{location.name}</p>
-              </div>
-              
-              <div className="w-10" />
-            </div>
-            
-            {/* Frame guide */}
-            <div className="flex-1 flex items-center justify-center p-8">
-              <div className="w-full aspect-[4/3] border-2 border-white/50 rounded-2xl relative">
-                {/* Corner markers */}
-                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-lg" />
-                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-lg" />
-                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-lg" />
-                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-lg" />
-                
-                <p className="absolute inset-0 flex items-center justify-center text-white/70 text-sm text-center px-8">
-                  Align the landmark within the frame
-                </p>
-              </div>
-            </div>
-            
-            {/* Capture button */}
-            <div className="p-8 pb-12 flex justify-center safe-bottom">
-              <button
-                onClick={handleCapture}
-                disabled={isCapturing}
-                className="w-20 h-20 rounded-full bg-white flex items-center justify-center"
-              >
-                <div className={`w-16 h-16 rounded-full gradient-primary ${
-                  isCapturing ? 'animate-pulse' : ''
-                }`} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Hidden file input for native camera */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileChange}
+        className="hidden"
+      />
 
       {/* Header */}
       <div className="relative">
@@ -165,7 +109,7 @@ const LocationScreen: React.FC = () => {
                 Navigate Here
               </button>
               <button
-                onClick={() => setShowCamera(true)}
+                onClick={handleTakePhoto}
                 className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-button"
               >
                 <Camera className="w-5 h-5" />
