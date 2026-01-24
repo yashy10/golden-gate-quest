@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary";
 import SplashScreen from "./pages/SplashScreen";
 import WelcomePage from "./pages/WelcomePage";
 import OnboardingScreen from "./pages/OnboardingScreen";
@@ -16,25 +17,27 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<SplashScreen />} />
-          <Route path="/welcome" element={<WelcomePage />} />
-          <Route path="/onboarding" element={<OnboardingScreen />} />
-          <Route path="/categories" element={<CategoriesScreen />} />
-          <Route path="/itinerary" element={<ItineraryScreen />} />
-          <Route path="/location/:index" element={<LocationScreen />} />
-          <Route path="/discovery/:index" element={<DiscoveryScreen />} />
-          <Route path="/achievement" element={<AchievementScreen />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<SplashScreen />} />
+            <Route path="/welcome" element={<WelcomePage />} />
+            <Route path="/onboarding" element={<OnboardingScreen />} />
+            <Route path="/categories" element={<CategoriesScreen />} />
+            <Route path="/itinerary" element={<ItineraryScreen />} />
+            <Route path="/location/:index" element={<LocationScreen />} />
+            <Route path="/discovery/:index" element={<DiscoveryScreen />} />
+            <Route path="/achievement" element={<AchievementScreen />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
