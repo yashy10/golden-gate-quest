@@ -1,0 +1,18 @@
+pip install "transformers>=4.47.1,<5.0.0"
+
+pip install cuvs-cu13 --extra-index-url=https://pypi.nvidia.com
+
+pip install cupy-cuda13x
+
+pip install accelerate
+
+pip install fastapi uvicorn accelerate 
+
+
+pip install fastapi
+pip install uvicorn
+
+docker run --gpus all -it --name tarun-rag \
+  -p 8000:8000 \
+  -v "/home/dell/Documents/tarun_shit:/rag" \
+  nvcr.io/nvidia/pytorch:25.12-py3

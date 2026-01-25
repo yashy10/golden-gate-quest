@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-multipart
+pillow
+
+# diffusion
+diffusers
+transformers
+accelerate
+
+# tts
+pocket-tts
+
+# nvidia vector store (needs extra index)
+--extra-index-url https://pypi.nvidia.com
+cuvs-cu13
+cupy-cuda13x

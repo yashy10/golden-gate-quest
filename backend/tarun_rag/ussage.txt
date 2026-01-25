@@ -1,0 +1,110 @@
+grok                                                                                                       (Ctrl+C to quit)
+                                                                                                                            
+:door: One gateway for every AI model. Available in early access *now*: https://ngrok.com/r/ai                                  
+                                                                                                                            
+Session Status                online                                                                                        
+Account                       teendifferent7@gmail.com (Plan: Free)                                                         
+Update                        update available (version 3.35.0, Ctrl-U to update)                                           
+Version                       3.34.1                                                                                        
+Region                        United States (California) (us-cal-1)                                                         
+Latency                       16ms                                                                                          
+Web Interface                 http://127.0.0.1:4040                                                                         
+Forwarding                    https://797fe7137bf5.ngrok-free.app -> http://localhost:19005                                 
+Forwarding                    https://ce0ed9f2cd84.ngrok-free.app -> http://localhost:19006                                 
+Forwarding                    https://f051028acd78.ngrok-free.app -> http://localhost:19000                                 
+                                                                                                                            
+Connections                   ttl     opn     rt1     rt5     p50     p90                                                   
+                              0       0       0.00    0.00    0.00    0.00      
+
+---
+
+### Which ngrok URL is which?
+From your ngrok output:
+
+- **RAG API (host `19005`)** → `https://797fe7137bf5.ngrok-free.app`
+- **Diffusion API (host `19006`)** → `https://ce0ed9f2cd84.ngrok-free.app`
+- **TTS (host `19000`)** → `https://f051028acd78.ngrok-free.app`
+
+Quick checks:
+
+```bash
+curl https://797fe7137bf5.ngrok-free.app/health
+curl https://ce0ed9f2cd84.ngrok-free.app/health
+```
+
+### TypeScript (frontend) examples
+
+**RAG search** (`POST /search`):
+
+```ts
+const RAG_BASE = "https://797fe7137bf5.ngrok-free.app";
+
+export async function ragSearch(query: string, top_k = 3) {
+  const res = await fetch(`${RAG_BASE}/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, top_k }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as {
+    query: string;
+    results: Array<{ id: string; category: string; text: string; score: number }>;
+  };
+}
+```
+
+**Diffusion img2img** (`POST /flux2klein/img2img`, returns PNG bytes):
+
+```ts
+const DIFF_BASE = "https://ce0ed9f2cd84.ngrok-free.app";
+
+export async function fluxImg2Img(prompt: string, file: File) {
+  const fd = new FormData();
+  fd.append("init_image", file);
+
+  const res = await fetch(`${DIFF_BASE}/flux2klein/img2img?prompt=${encodeURIComponent(prompt)}`, {
+    method: "POST",
+    body: fd,
+  });
+  if (!res.ok) throw new Error(await res.text());
+
+  const blob = await res.blob(); // image/png
+  return URL.createObjectURL(blob); // set this as <img src=...>
+}
+```
+
+### Python examples
+
+**RAG search**:
+
+```python
+import requests
+
+RAG_BASE = "https://797fe7137bf5.ngrok-free.app"
+r = requests.post(f"{RAG_BASE}/search", json={"query": "golden gate bridge", "top_k": 3})
+r.raise_for_status()
+print(r.json())
+```
+
+**Diffusion img2img**:
+
+```python
+import requests
+
+DIFF_BASE = "https://ce0ed9f2cd84.ngrok-free.app"
+with open("/home/dell/Documents/tarun_shit/diffusion_sample/image.png", "rb") as f:
+    r = requests.post(
+        f"{DIFF_BASE}/flux2klein/img2img",
+        params={"prompt": "a cinematic anime poster"},
+        files={"init_image": ("image.png", f, "image/png")},
+    )
+r.raise_for_status()
+open("out.png", "wb").write(r.content)
+```
+
+### TTS note (endpoint depends on pocket-tts)
+I don’t know your `pocket-tts serve` routes from here; easiest is to discover:
+
+```bash
+curl -i https://f051028acd78.ngrok-free.app/
+curl -i https://f051028acd7

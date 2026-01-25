@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Virtualenvs
+env/
+venv/
+.venv/
+
+# Env/secrets
+.env
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Outputs
+*.log
+*.tmp
+*.png
+*.jpg
+*.jpeg
+
+# Local vector DB / indexes (regenerate)
+vector_db/
+
+# Large vendor-like subtree (optional; remove if you want it versioned)
+diffusion_sample/diffusers/
+
+# Hugging Face caches (usually in home, but ignore if present here)
+hf_cache/
+huggingface_cache/
+
