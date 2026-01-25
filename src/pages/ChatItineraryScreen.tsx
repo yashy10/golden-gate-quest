@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Sparkles, Check, MapPin, Utensils, Loader2, RefreshCw } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
@@ -24,7 +24,7 @@ interface ChatMessage {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const LLM_PROVIDER = (import.meta.env.VITE_LLM_PROVIDER || 'openai') as 'openai' | 'dgx';
 
-const ChatItineraryScreen: React.FC = () => {
+const ChatItineraryScreen = forwardRef<HTMLDivElement>((_, ref) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { selectedCategories, preferences, setQuest, _hasHydrated } = useQuestStore();
@@ -385,7 +385,7 @@ const ChatItineraryScreen: React.FC = () => {
   }
 
   return (
-    <div className="mobile-container min-h-screen bg-background flex flex-col">
+    <div ref={ref} className="mobile-container min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="page-padding pb-2">
         <div className="flex items-center justify-between mb-4">
@@ -491,6 +491,8 @@ const ChatItineraryScreen: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+
+ChatItineraryScreen.displayName = 'ChatItineraryScreen';
 
 export default ChatItineraryScreen;
