@@ -1,19 +1,150 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Mic, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Mic, ArrowRight, Download } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import PhotoComparison from '@/components/PhotoComparison';
 import Confetti from '@/components/Confetti';
+import { useToast } from '@/hooks/use-toast';
 
 const DiscoveryScreen: React.FC = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { index } = useParams<{ index: string }>();
   const locationIndex = parseInt(index || '0', 10);
-  
+
   const { _hasHydrated, currentQuest, getProgress } = useQuestStore();
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Detect if running on iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  const handleSavePhoto = async (photoUrl: string, filename: string) => {
+    setIsSaving(true);
+
+    try {
+      // Check if it's a blob URL (user's photo) or external URL
+      const isBlobUrl = photoUrl.startsWith('blob:');
+
+      if (isBlobUrl) {
+        // For blob URLs, we can fetch directly
+        const response = await fetch(photoUrl);
+        const blob = await response.blob();
+
+        // Try Web Share API on iOS
+        if (navigator.share && isIOS && navigator.canShare?.({ files: [new File([blob], 'test.jpg', { type: 'image/jpeg' })] })) {
+          const file = new File([blob], `${filename}.jpg`, { type: 'image/jpeg' });
+          try {
+            await navigator.share({ files: [file] });
+            toast({
+              title: "Photo saved",
+              description: "Photo has been shared/saved.",
+            });
+            setIsSaving(false);
+            return;
+          } catch (shareError) {
+            if ((shareError as Error).name === 'AbortError') {
+              setIsSaving(false);
+              return;
+            }
+          }
+        }
+
+        // Desktop download for blob URLs
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "Photo saved",
+          description: "Photo downloaded successfully.",
+        });
+      } else {
+        // For external URLs (Unsplash, etc.), use canvas to bypass CORS
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('Failed to load image'));
+          img.src = photoUrl;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((b) => {
+            if (b) resolve(b);
+            else reject(new Error('Failed to create blob'));
+          }, 'image/jpeg', 0.95);
+        });
+
+        // Try Web Share API on iOS
+        if (navigator.share && isIOS && navigator.canShare?.({ files: [new File([blob], 'test.jpg', { type: 'image/jpeg' })] })) {
+          const file = new File([blob], `${filename}.jpg`, { type: 'image/jpeg' });
+          try {
+            await navigator.share({ files: [file] });
+            toast({
+              title: "Photo saved",
+              description: "Photo has been shared/saved.",
+            });
+            setIsSaving(false);
+            return;
+          } catch (shareError) {
+            if ((shareError as Error).name === 'AbortError') {
+              setIsSaving(false);
+              return;
+            }
+          }
+        }
+
+        // Desktop download
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "Photo saved",
+          description: "Photo downloaded successfully.",
+        });
+      }
+    } catch (error) {
+      console.error('Error saving photo:', error);
+
+      // Last resort: open in new tab for manual save
+      if (isIOS) {
+        window.open(photoUrl, '_blank');
+        toast({
+          title: "Photo opened",
+          description: "Long-press the image and tap 'Add to Photos'.",
+        });
+      } else {
+        window.open(photoUrl, '_blank');
+        toast({
+          title: "Photo opened",
+          description: "Right-click the image and choose 'Save Image As'.",
+        });
+      }
+    }
+
+    setIsSaving(false);
+  };
 
   useEffect(() => {
     // Show confetti on first visit
@@ -124,6 +255,26 @@ const DiscoveryScreen: React.FC = () => {
             historicPhoto={location.historicImage}
             historicYear={location.historicYear}
           />
+
+          {/* Save Photo Buttons */}
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => handleSavePhoto(userPhoto, `${location.name.replace(/\s+/g, '-')}-today`)}
+              disabled={isSaving}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-secondary text-secondary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              {isSaving ? 'Saving...' : 'Save Your Photo'}
+            </button>
+            <button
+              onClick={() => handleSavePhoto(location.historicImage, `${location.name.replace(/\s+/g, '-')}-${location.historicYear}`)}
+              disabled={isSaving}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-muted text-muted-foreground text-sm font-medium disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              {isSaving ? 'Saving...' : 'Save Historic'}
+            </button>
+          </div>
         </div>
 
         {/* The Story */}

@@ -82,7 +82,7 @@ const ItineraryScreen: React.FC = () => {
 
         {/* AI Provider notification */}
         <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-3 text-sm ${
-          currentQuest.aiProvider === 'openai'
+          currentQuest.aiProvider === 'openai' || currentQuest.aiProvider === 'dgx'
             ? 'bg-green-500/10 text-green-700 dark:text-green-400'
             : 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'
         }`}>
@@ -91,10 +91,15 @@ const ItineraryScreen: React.FC = () => {
               <Sparkles className="w-4 h-4" />
               <span>Quest generated with OpenAI</span>
             </>
+          ) : currentQuest.aiProvider === 'dgx' ? (
+            <>
+              <Sparkles className="w-4 h-4" />
+              <span>Quest generated with DGX Spark</span>
+            </>
           ) : (
             <>
               <AlertCircle className="w-4 h-4" />
-              <span>Quest generated with fallback (OpenAI not used)</span>
+              <span>Quest generated with fallback</span>
             </>
           )}
         </div>

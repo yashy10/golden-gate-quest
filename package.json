@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:openai": "VITE_LLM_PROVIDER=openai vite",
+    "dev:dgx": "VITE_LLM_PROVIDER=dgx vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

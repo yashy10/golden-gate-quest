@@ -49,7 +49,7 @@ export interface Quest {
   categories: Category[];
   locations: Location[];
   foodStop: FoodStop;
-  aiProvider?: 'openai' | 'fallback';
+  aiProvider?: 'openai' | 'dgx' | 'fallback';
   progress: {
     currentIndex: number;
     completed: boolean[];

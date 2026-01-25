@@ -82,54 +82,86 @@ ${foodStops.map((fs, i) =>
 
 Return your selections using the tool provided.`;
 
-      // Call OpenAI directly
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          tools: [
-            {
-              type: 'function',
-              function: {
-                name: 'create_quest',
-                description: 'Create a curated quest with selected locations and food stop',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    locationIndices: {
-                      type: 'array',
-                      items: { type: 'number' },
-                      description: 'Array of 5 indices (1-based) from the available locations list, ordered for the best route'
-                    },
-                    foodStopIndex: {
-                      type: 'number',
-                      description: 'Index (1-based) of the selected food stop'
-                    },
-                    questTheme: {
-                      type: 'string',
-                      description: "A catchy theme or title for this quest (e.g., 'Hidden Treasures of the Mission', 'Waterfront Wonders')"
-                    },
-                    questDescription: {
-                      type: 'string',
-                      description: 'A brief personalized description of why these locations were chosen for this user'
-                    }
+      // Determine which LLM provider to use
+      const llmProvider = import.meta.env.VITE_LLM_PROVIDER || 'openai';
+      const isDGX = llmProvider === 'dgx';
+
+      // Use proxy for DGX to avoid CORS issues
+      const apiUrl = isDGX
+        ? '/api/dgx/v1/chat/completions'
+        : 'https://api.openai.com/v1/chat/completions';
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Only add Authorization header for OpenAI
+      if (!isDGX) {
+        headers['Authorization'] = `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`;
+      }
+
+      // Build request body based on provider
+      const requestBody: Record<string, unknown> = {
+        model: isDGX ? 'qwen-vl' : 'gpt-4o-mini',
+        max_tokens: 1000,
+      };
+
+      if (isDGX) {
+        // DGX doesn't support tools - ask for JSON in response
+        const dgxPrompt = `${systemPrompt}
+
+${userPrompt}
+
+IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text:
+{"locationIndices": [1, 2, 3, 4, 5], "foodStopIndex": 1, "questTheme": "Theme Name", "questDescription": "Description"}`;
+
+        requestBody.messages = [{ role: 'user', content: dgxPrompt }];
+      } else {
+        // OpenAI supports tools
+        requestBody.messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ];
+        requestBody.tools = [
+          {
+            type: 'function',
+            function: {
+              name: 'create_quest',
+              description: 'Create a curated quest with selected locations and food stop',
+              parameters: {
+                type: 'object',
+                properties: {
+                  locationIndices: {
+                    type: 'array',
+                    items: { type: 'number' },
+                    description: 'Array of 5 indices (1-based) from the available locations list, ordered for the best route'
                   },
-                  required: ['locationIndices', 'foodStopIndex', 'questTheme', 'questDescription'],
-                  additionalProperties: false
-                }
+                  foodStopIndex: {
+                    type: 'number',
+                    description: 'Index (1-based) of the selected food stop'
+                  },
+                  questTheme: {
+                    type: 'string',
+                    description: "A catchy theme or title for this quest (e.g., 'Hidden Treasures of the Mission', 'Waterfront Wonders')"
+                  },
+                  questDescription: {
+                    type: 'string',
+                    description: 'A brief personalized description of why these locations were chosen for this user'
+                  }
+                },
+                required: ['locationIndices', 'foodStopIndex', 'questTheme', 'questDescription'],
+                additionalProperties: false
               }
             }
-          ],
-          tool_choice: { type: 'function', function: { name: 'create_quest' } },
-        }),
+          }
+        ];
+        requestBody.tool_choice = { type: 'function', function: { name: 'create_quest' } };
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -144,7 +176,7 @@ Return your selections using the tool provided.`;
         } else if (response.status === 401) {
           toast({
             title: "API key invalid",
-            description: "Please check your OpenAI API key.",
+            description: "Please check your API key.",
             variant: "destructive",
           });
           setIsGenerating(false);
@@ -154,13 +186,26 @@ Return your selections using the tool provided.`;
       }
 
       const aiResponse = await response.json();
-      const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
 
-      if (!toolCall || toolCall.function.name !== 'create_quest') {
-        throw new Error('Unexpected AI response format');
+      let questData;
+      if (isDGX) {
+        // Parse JSON from DGX response content
+        const content = aiResponse.choices?.[0]?.message?.content || '';
+        // Extract JSON from response (handle markdown code blocks if present)
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new Error('Could not parse quest data from response');
+        }
+        questData = JSON.parse(jsonMatch[0]);
+      } else {
+        // Parse from OpenAI tool call
+        const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
+        if (!toolCall || toolCall.function.name !== 'create_quest') {
+          throw new Error('Unexpected AI response format');
+        }
+        questData = JSON.parse(toolCall.function.arguments);
       }
 
-      const questData = JSON.parse(toolCall.function.arguments);
 
       // Map indices to actual locations (convert 1-based to 0-based)
       let selectedLocations = questData.locationIndices
@@ -189,7 +234,7 @@ Return your selections using the tool provided.`;
         categories: selectedCategories,
         locations: selectedLocations,
         foodStop: selectedFoodStop,
-        aiProvider: 'openai',
+        aiProvider: isDGX ? 'dgx' : 'openai',
         progress: {
           currentIndex: 0,
           completed: new Array(selectedLocations.length).fill(false),

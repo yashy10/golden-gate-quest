@@ -12,6 +12,13 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    proxy: {
+      '/api/dgx': {
+        target: process.env.VITE_DGX_URL || 'http://192.168.128.247:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/dgx/, ''),
+      },
+    },
   },
   plugins: [
     react(),
