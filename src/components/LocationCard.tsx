@@ -24,7 +24,11 @@ const LocationCard: React.FC<LocationCardProps> = ({
   onNavigate,
   onSelect,
 }) => {
-  const categoryData = categoryInfo[location.category];
+  const categoryData = categoryInfo[location.category] || { 
+    icon: '📍', 
+    title: location.category || 'Location', 
+    subtitle: '' 
+  };
   
   return (
     <div
