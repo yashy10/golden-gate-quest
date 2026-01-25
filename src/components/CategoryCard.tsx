@@ -6,6 +6,7 @@ interface CategoryCardProps {
   icon: string;
   title: string;
   subtitle: string;
+  culturalFocus?: string;
   selected: boolean;
   onClick: () => void;
   disabled?: boolean;
@@ -15,6 +16,7 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
   icon,
   title,
   subtitle,
+  culturalFocus,
   selected,
   onClick,
   disabled = false,
@@ -43,6 +45,11 @@ const CategoryCard: React.FC<CategoryCardProps> = ({
       {/* Content */}
       <h3 className="font-semibold text-foreground text-sm mb-1">{title}</h3>
       <p className="text-xs text-muted-foreground">{subtitle}</p>
+      {culturalFocus && selected && (
+        <p className="text-[10px] text-accent mt-2 font-medium opacity-90">
+          ✨ {culturalFocus}
+        </p>
+      )}
     </button>
   );
 };
