@@ -23,6 +23,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/dgx/, ""),
         },
+        "/api/voice": {
+          target: env.VITE_VOICE_URL || "http://localhost:8787",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/voice/, "/api"),
+        },
       },
     },
     plugins: [

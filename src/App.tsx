@@ -13,6 +13,7 @@ import LocationScreen from "./pages/LocationScreen";
 import DiscoveryScreen from "./pages/DiscoveryScreen";
 import AchievementScreen from "./pages/AchievementScreen";
 import NotFound from "./pages/NotFound";
+import VoiceButton from "./components/VoiceButton";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <VoiceButton />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<SplashScreen />} />
