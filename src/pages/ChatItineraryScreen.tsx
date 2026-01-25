@@ -22,6 +22,7 @@ interface ChatMessage {
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const LLM_PROVIDER = (import.meta.env.VITE_LLM_PROVIDER || 'openai') as 'openai' | 'dgx';
 
 const ChatItineraryScreen: React.FC = () => {
   const navigate = useNavigate();
@@ -82,6 +83,7 @@ const ChatItineraryScreen: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'generate',
+            provider: LLM_PROVIDER,
             categories: selectedCategories,
             preferences: {
               ageRange: fullPreferences.ageRange,
@@ -151,6 +153,7 @@ const ChatItineraryScreen: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'chat',
+          provider: LLM_PROVIDER,
           messages: [...messages, userMessage].map(m => ({
             role: m.role,
             content: m.content,
@@ -226,6 +229,7 @@ const ChatItineraryScreen: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'generate',
+          provider: LLM_PROVIDER,
           categories: selectedCategories,
           preferences: {
             ageRange: fullPreferences.ageRange,
@@ -297,7 +301,7 @@ const ChatItineraryScreen: React.FC = () => {
       categories: selectedCategories,
       locations: selectedLocations,
       foodStop: selectedFoodStop,
-      aiProvider: 'openai',
+      aiProvider: LLM_PROVIDER,
       progress: {
         currentIndex: 0,
         completed: new Array(selectedLocations.length).fill(false),
