@@ -8,6 +8,7 @@ import SplashScreen from "./pages/SplashScreen";
 import WelcomePage from "./pages/WelcomePage";
 import OnboardingScreen from "./pages/OnboardingScreen";
 import CategoriesScreen from "./pages/CategoriesScreen";
+import ChatItineraryScreen from "./pages/ChatItineraryScreen";
 import ItineraryScreen from "./pages/ItineraryScreen";
 import LocationScreen from "./pages/LocationScreen";
 import DiscoveryScreen from "./pages/DiscoveryScreen";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/welcome" element={<WelcomePage />} />
             <Route path="/onboarding" element={<OnboardingScreen />} />
             <Route path="/categories" element={<CategoriesScreen />} />
+            <Route path="/chat-itinerary" element={<ChatItineraryScreen />} />
             <Route path="/itinerary" element={<ItineraryScreen />} />
             <Route path="/location/:index" element={<LocationScreen />} />
             <Route path="/discovery/:index" element={<DiscoveryScreen />} />
