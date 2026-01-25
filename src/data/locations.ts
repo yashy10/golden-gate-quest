@@ -4,7 +4,10 @@ export type Category =
   | 'neighborhoods'
   | 'hidden-gems'
   | 'waterfront'
-  | 'parks';
+  | 'parks'
+  | 'arts-culture'
+  | 'local-business'
+  | 'film-history';
 
 export interface Location {
   id: string;
@@ -57,13 +60,61 @@ export interface Quest {
   };
 }
 
-export const categoryInfo: Record<Category, { icon: string; title: string; subtitle: string }> = {
-  iconic: { icon: '🏛️', title: 'Iconic Landmarks', subtitle: 'The famous must-sees' },
-  architecture: { icon: '🏠', title: 'Historic Architecture', subtitle: 'Victorian gems & grand buildings' },
-  neighborhoods: { icon: '🌍', title: 'Cultural Neighborhoods', subtitle: 'Chinatown, Mission & more' },
-  'hidden-gems': { icon: '💎', title: 'Hidden Gems', subtitle: 'Secret spots locals love' },
-  waterfront: { icon: '🌊', title: 'Waterfront & Maritime', subtitle: 'Bay views & nautical history' },
-  parks: { icon: '🌲', title: 'Parks & Panoramas', subtitle: 'Nature & breathtaking views' },
+export const categoryInfo: Record<Category, { icon: string; title: string; subtitle: string; culturalFocus?: string }> = {
+  'arts-culture': { 
+    icon: '🎭', 
+    title: 'Arts & Culture', 
+    subtitle: 'Museums, theaters & galleries',
+    culturalFocus: 'Celebrating SF\'s vibrant arts scene'
+  },
+  neighborhoods: { 
+    icon: '🌍', 
+    title: 'Cultural Districts', 
+    subtitle: 'Chinatown, Mission & unique communities',
+    culturalFocus: 'Preserving neighborhood identity & heritage'
+  },
+  'local-business': { 
+    icon: '🏪', 
+    title: 'Local Treasures', 
+    subtitle: 'Historic shops & community hubs',
+    culturalFocus: 'Supporting small business legacy'
+  },
+  'film-history': { 
+    icon: '🎬', 
+    title: 'Film & Media', 
+    subtitle: 'Famous filming locations',
+    culturalFocus: 'SF\'s cinematic heritage'
+  },
+  iconic: { 
+    icon: '🏛️', 
+    title: 'Iconic Landmarks', 
+    subtitle: 'The famous must-sees',
+    culturalFocus: 'Symbols of SF identity'
+  },
+  architecture: { 
+    icon: '🏠', 
+    title: 'Historic Architecture', 
+    subtitle: 'Victorian gems & grand buildings',
+    culturalFocus: 'Architectural preservation'
+  },
+  'hidden-gems': { 
+    icon: '💎', 
+    title: 'Hidden Gems', 
+    subtitle: 'Secret spots locals love',
+    culturalFocus: 'Community discoveries'
+  },
+  waterfront: { 
+    icon: '🌊', 
+    title: 'Waterfront & Maritime', 
+    subtitle: 'Bay views & nautical history',
+    culturalFocus: 'Maritime heritage'
+  },
+  parks: { 
+    icon: '🌲', 
+    title: 'Parks & Recreation', 
+    subtitle: 'Green spaces & outdoor culture',
+    culturalFocus: 'Public spaces for all'
+  },
 };
 
 export const allLocations: Location[] = [

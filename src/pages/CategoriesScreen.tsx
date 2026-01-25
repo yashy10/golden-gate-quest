@@ -60,10 +60,13 @@ const CategoriesScreen: React.FC = () => {
         </button>
 
         <h1 className="text-2xl font-bold text-foreground mb-2">
-          What excites you most about SF?
+          Discover SF's Cultural Soul
         </h1>
         <p className="text-muted-foreground">
-          Pick 2-3 categories for your perfect quest
+          Explore arts, recreation & community identity — pick 2-3 themes
+        </p>
+        <p className="text-xs text-accent mt-2 font-medium">
+          🌉 Celebrating what makes San Francisco unique
         </p>
 
         {/* Selection counter with animated dots */}
@@ -105,6 +108,7 @@ const CategoriesScreen: React.FC = () => {
                 icon={info.icon}
                 title={info.title}
                 subtitle={info.subtitle}
+                culturalFocus={info.culturalFocus}
                 selected={selectedCategories.includes(key)}
                 disabled={maxReached && !selectedCategories.includes(key)}
                 onClick={() => toggleCategory(key)}
