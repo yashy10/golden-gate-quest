@@ -51,9 +51,9 @@ serve(async (req) => {
     console.log("Generating quest for categories:", categories);
     console.log("User preferences:", preferences);
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not configured");
     }
 
     // Filter locations by selected categories
@@ -99,14 +99,14 @@ ${foodStops.map((fs: FoodStop, i: number) =>
 
 Return your selections using the tool provided.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -156,16 +156,16 @@ Return your selections using the tool provided.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        console.error("Payment required");
-        return new Response(JSON.stringify({ error: "AI credits depleted. Please add credits to continue." }), {
-          status: 402,
+      if (response.status === 402 || response.status === 401) {
+        console.error("OpenAI auth/billing error");
+        return new Response(JSON.stringify({ error: "OpenAI API key invalid or billing issue." }), {
+          status: response.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error("OpenAI API error:", response.status, errorText);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const aiResponse = await response.json();
@@ -210,6 +210,7 @@ Return your selections using the tool provided.`;
       foodStop: selectedFoodStop,
       theme: questData.questTheme,
       description: questData.questDescription,
+      aiProvider: 'openai',
       progress: {
         currentIndex: 0,
         completed: new Array(selectedLocations.length).fill(false),

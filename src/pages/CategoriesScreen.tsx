@@ -28,7 +28,7 @@ const CategoriesScreen: React.FC = () => {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    
+
     try {
       // Build full preferences
       const fullPreferences: UserPreferences = {
@@ -40,51 +40,161 @@ const CategoriesScreen: React.FC = () => {
         groupSize: preferences.groupSize || 'solo',
       };
 
-      // Call the AI edge function
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quest`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            categories: selectedCategories,
-            preferences: fullPreferences,
-            allLocations,
-            foodStops,
-          }),
-        }
+      // Filter locations by selected categories
+      const availableLocations = allLocations.filter(loc =>
+        selectedCategories.includes(loc.category)
       );
 
+      const systemPrompt = `You are an expert San Francisco tour guide and travel curator. Your job is to create the perfect personalized quest for visitors based on their preferences.
+
+Given a list of available locations and user preferences, select exactly 5 locations that would create the most enjoyable and cohesive experience. Consider:
+- The user's age range and interests
+- Budget constraints
+- Time available (half-day, full-day, multi-day)
+- Mobility requirements (walking-friendly, transit-accessible)
+- Group size and dynamics
+- Geographic proximity to minimize travel time
+- A good narrative flow that tells the story of San Francisco
+
+Also select the best food stop that matches their budget and would be conveniently located along their route.`;
+
+      const userPrompt = `Create a personalized quest with these parameters:
+
+User Preferences:
+- Age Range: ${fullPreferences.ageRange}
+- Budget: ${fullPreferences.budget}
+- Time Available: ${fullPreferences.timeAvailable}
+- Mobility: ${fullPreferences.mobility}
+- Group Size: ${fullPreferences.groupSize}
+- Starting Point: ${fullPreferences.startingPoint.type === 'address' ? fullPreferences.startingPoint.value : 'Current location'}
+
+Selected Categories: ${selectedCategories.join(', ')}
+
+Available Locations (pick exactly 5):
+${availableLocations.map((loc, i) =>
+  `${i + 1}. ${loc.name} (${loc.neighborhood}) - ${loc.category}: ${loc.shortSummary}`
+).join('\n')}
+
+Available Food Stops (pick 1 that best matches their budget and route):
+${foodStops.map((fs, i) =>
+  `${i + 1}. ${fs.name} (${fs.cuisine}, ${fs.priceRange}) in ${fs.neighborhood}`
+).join('\n')}
+
+Return your selections using the tool provided.`;
+
+      // Call OpenAI directly
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          tools: [
+            {
+              type: 'function',
+              function: {
+                name: 'create_quest',
+                description: 'Create a curated quest with selected locations and food stop',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    locationIndices: {
+                      type: 'array',
+                      items: { type: 'number' },
+                      description: 'Array of 5 indices (1-based) from the available locations list, ordered for the best route'
+                    },
+                    foodStopIndex: {
+                      type: 'number',
+                      description: 'Index (1-based) of the selected food stop'
+                    },
+                    questTheme: {
+                      type: 'string',
+                      description: "A catchy theme or title for this quest (e.g., 'Hidden Treasures of the Mission', 'Waterfront Wonders')"
+                    },
+                    questDescription: {
+                      type: 'string',
+                      description: 'A brief personalized description of why these locations were chosen for this user'
+                    }
+                  },
+                  required: ['locationIndices', 'foodStopIndex', 'questTheme', 'questDescription'],
+                  additionalProperties: false
+                }
+              }
+            }
+          ],
+          tool_choice: { type: 'function', function: { name: 'create_quest' } },
+        }),
+      });
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         if (response.status === 429) {
           toast({
             title: "Too many requests",
             description: "Please wait a moment and try again.",
             variant: "destructive",
           });
-        } else if (response.status === 402) {
+          setIsGenerating(false);
+          return;
+        } else if (response.status === 401) {
           toast({
-            title: "Credits depleted",
-            description: "AI credits need to be topped up.",
+            title: "API key invalid",
+            description: "Please check your OpenAI API key.",
             variant: "destructive",
           });
-        } else {
-          throw new Error(errorData.error || 'Failed to generate quest');
+          setIsGenerating(false);
+          return;
         }
-        setIsGenerating(false);
-        return;
+        throw new Error('Failed to generate quest');
       }
 
-      const questData = await response.json();
-      
-      // Convert createdAt string back to Date
+      const aiResponse = await response.json();
+      const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
+
+      if (!toolCall || toolCall.function.name !== 'create_quest') {
+        throw new Error('Unexpected AI response format');
+      }
+
+      const questData = JSON.parse(toolCall.function.arguments);
+
+      // Map indices to actual locations (convert 1-based to 0-based)
+      let selectedLocations = questData.locationIndices
+        .map((idx: number) => availableLocations[idx - 1])
+        .filter(Boolean)
+        .slice(0, 5);
+
+      // Ensure we have exactly 5 locations
+      while (selectedLocations.length < 5 && availableLocations.length > selectedLocations.length) {
+        const remaining = availableLocations.filter(
+          loc => !selectedLocations.some((sel: typeof loc) => sel.id === loc.id)
+        );
+        if (remaining.length > 0) {
+          selectedLocations.push(remaining[Math.floor(Math.random() * remaining.length)]);
+        }
+      }
+
+      // Get the food stop
+      const selectedFoodStop = foodStops[questData.foodStopIndex - 1] ||
+        foodStops[Math.floor(Math.random() * foodStops.length)];
+
       const quest: Quest = {
-        ...questData,
-        createdAt: new Date(questData.createdAt),
+        id: `quest-${Date.now()}`,
+        createdAt: new Date(),
+        preferences: fullPreferences,
+        categories: selectedCategories,
+        locations: selectedLocations,
+        foodStop: selectedFoodStop,
+        aiProvider: 'openai',
+        progress: {
+          currentIndex: 0,
+          completed: new Array(selectedLocations.length).fill(false),
+          photos: new Array(selectedLocations.length).fill(''),
+        },
       };
 
       setQuest(quest);

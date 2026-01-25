@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { MapPin, Clock, Route, Menu, Trophy, List, Map } from 'lucide-react';
+import { MapPin, Clock, Route, Menu, Trophy, List, Map, Sparkles, AlertCircle } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import LocationCard from '@/components/LocationCard';
 import FoodStopCard from '@/components/FoodStopCard';
@@ -78,6 +78,25 @@ const ItineraryScreen: React.FC = () => {
           <button className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
             <Menu className="w-5 h-5 text-foreground" />
           </button>
+        </div>
+
+        {/* AI Provider notification */}
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-3 text-sm ${
+          currentQuest.aiProvider === 'openai'
+            ? 'bg-green-500/10 text-green-700 dark:text-green-400'
+            : 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400'
+        }`}>
+          {currentQuest.aiProvider === 'openai' ? (
+            <>
+              <Sparkles className="w-4 h-4" />
+              <span>Quest generated with OpenAI</span>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="w-4 h-4" />
+              <span>Quest generated with fallback (OpenAI not used)</span>
+            </>
+          )}
         </div>
 
         {/* Stats bar with view toggle */}

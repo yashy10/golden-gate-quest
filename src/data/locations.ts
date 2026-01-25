@@ -49,6 +49,7 @@ export interface Quest {
   categories: Category[];
   locations: Location[];
   foodStop: FoodStop;
+  aiProvider?: 'openai' | 'fallback';
   progress: {
     currentIndex: number;
     completed: boolean[];
@@ -425,6 +426,7 @@ export function generateQuest(
     categories,
     locations: selectedLocations,
     foodStop,
+    aiProvider: 'fallback',
     progress: {
       currentIndex: 0,
       completed: new Array(selectedLocations.length).fill(false),
