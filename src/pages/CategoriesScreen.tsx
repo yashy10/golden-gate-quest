@@ -102,7 +102,7 @@ Return your selections using the tool provided.`;
 
       // Build request body based on provider
       const requestBody: Record<string, unknown> = {
-        model: isDGX ? 'qwen-vl' : 'gpt-4o-mini',
+        model: isDGX ? 'nemotron-3n' : 'gpt-4o-mini',
         max_tokens: 1000,
       };
 
@@ -112,7 +112,7 @@ Return your selections using the tool provided.`;
 
 ${userPrompt}
 
-IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text:
+IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text, DO NOT use any markdown formatting:
 {"locationIndices": [1, 2, 3, 4, 5], "foodStopIndex": 1, "questTheme": "Theme Name", "questDescription": "Description"}`;
 
         requestBody.messages = [{ role: 'user', content: dgxPrompt }];
