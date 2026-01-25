@@ -1,11 +1,13 @@
-export type Category = 
+export type Category =
   | 'iconic'
   | 'architecture'
   | 'neighborhoods'
-  | 'street-art'
   | 'hidden-gems'
   | 'waterfront'
-  | 'parks';
+  | 'parks'
+  | 'arts-culture'
+  | 'local-business'
+  | 'film-history';
 
 export interface Location {
   id: string;
@@ -58,14 +60,61 @@ export interface Quest {
   };
 }
 
-export const categoryInfo: Record<Category, { icon: string; title: string; subtitle: string }> = {
-  iconic: { icon: '🏛️', title: 'Iconic Landmarks', subtitle: 'The famous must-sees' },
-  architecture: { icon: '🏠', title: 'Historic Architecture', subtitle: 'Victorian gems & grand buildings' },
-  neighborhoods: { icon: '🌍', title: 'Cultural Neighborhoods', subtitle: 'Chinatown, Mission & more' },
-  'street-art': { icon: '🎨', title: 'Street Art & Murals', subtitle: 'Outdoor galleries & hidden art' },
-  'hidden-gems': { icon: '💎', title: 'Hidden Gems', subtitle: 'Secret spots locals love' },
-  waterfront: { icon: '🌊', title: 'Waterfront & Maritime', subtitle: 'Bay views & nautical history' },
-  parks: { icon: '🌲', title: 'Parks & Panoramas', subtitle: 'Nature & breathtaking views' },
+export const categoryInfo: Record<Category, { icon: string; title: string; subtitle: string; culturalFocus?: string }> = {
+  'arts-culture': { 
+    icon: '🎭', 
+    title: 'Arts & Culture', 
+    subtitle: 'Museums, theaters & galleries',
+    culturalFocus: 'Celebrating SF\'s vibrant arts scene'
+  },
+  neighborhoods: { 
+    icon: '🌍', 
+    title: 'Cultural Districts', 
+    subtitle: 'Chinatown, Mission & unique communities',
+    culturalFocus: 'Preserving neighborhood identity & heritage'
+  },
+  'local-business': { 
+    icon: '🏪', 
+    title: 'Local Treasures', 
+    subtitle: 'Historic shops & community hubs',
+    culturalFocus: 'Supporting small business legacy'
+  },
+  'film-history': { 
+    icon: '🎬', 
+    title: 'Film & Media', 
+    subtitle: 'Famous filming locations',
+    culturalFocus: 'SF\'s cinematic heritage'
+  },
+  iconic: { 
+    icon: '🏛️', 
+    title: 'Iconic Landmarks', 
+    subtitle: 'The famous must-sees',
+    culturalFocus: 'Symbols of SF identity'
+  },
+  architecture: { 
+    icon: '🏠', 
+    title: 'Historic Architecture', 
+    subtitle: 'Victorian gems & grand buildings',
+    culturalFocus: 'Architectural preservation'
+  },
+  'hidden-gems': { 
+    icon: '💎', 
+    title: 'Hidden Gems', 
+    subtitle: 'Secret spots locals love',
+    culturalFocus: 'Community discoveries'
+  },
+  waterfront: { 
+    icon: '🌊', 
+    title: 'Waterfront & Maritime', 
+    subtitle: 'Bay views & nautical history',
+    culturalFocus: 'Maritime heritage'
+  },
+  parks: { 
+    icon: '🌲', 
+    title: 'Parks & Recreation', 
+    subtitle: 'Green spaces & outdoor culture',
+    culturalFocus: 'Public spaces for all'
+  },
 };
 
 export const allLocations: Location[] = [
@@ -199,36 +248,6 @@ export const allLocations: Location[] = [
     shortSummary: "Founded by poet Lawrence Ferlinghetti, City Lights was the first all-paperback bookstore in the U.S. and the birthplace of the Beat Generation literary movement.",
     fullDescription: "In 1956, City Lights published Allen Ginsberg's 'Howl,' leading to an obscenity trial that became a landmark First Amendment case. The store's three floors are packed with poetry, progressive politics, and counterculture works. The alley next door is officially named Jack Kerouac Alley. Look for the 'I Am the Door' sign—a meditation on knowledge and freedom.",
     hints: ['Located at the corner of Columbus and Broadway', 'Look for the iconic yellow and black signage'],
-  },
-
-  // Street Art
-  {
-    id: 'clarion-alley',
-    name: 'Clarion Alley',
-    neighborhood: 'Mission District',
-    address: 'Clarion Alley, San Francisco, CA 94110',
-    coordinates: { lat: 37.7631, lng: -122.4222 },
-    category: 'street-art',
-    heroImage: 'https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=800',
-    historicImage: 'https://images.unsplash.com/photo-1476973422084-e0fa66ff9456?w=800',
-    historicYear: '1992',
-    shortSummary: "This one-block alley between Mission and Valencia streets is covered floor to ceiling with murals addressing social justice, politics, and community issues. Art changes regularly.",
-    fullDescription: "The Clarion Alley Mural Project (CAMP) was founded in 1992 by a collective of artists who wanted to bring art to the community. Unlike commercial murals, these works are often provocative, addressing gentrification, police brutality, immigration, and LGBTQ+ rights. The murals are regularly updated, making each visit unique. The project proves that walls can be tools for change.",
-    hints: ['Access from Valencia Street between 17th and 18th', 'The entire alley is the gallery'],
-  },
-  {
-    id: 'balmy-alley',
-    name: 'Balmy Alley',
-    neighborhood: 'Mission District',
-    address: 'Balmy Alley, San Francisco, CA 94110',
-    coordinates: { lat: 37.7536, lng: -122.4122 },
-    category: 'street-art',
-    heroImage: 'https://images.unsplash.com/photo-1499781350541-7783f6c6a0c8?w=800',
-    historicImage: 'https://images.unsplash.com/photo-1476973422084-e0fa66ff9456?w=800',
-    historicYear: '1984',
-    shortSummary: "San Francisco's original mural alley, Balmy features over 30 murals primarily addressing Central American politics, human rights, and Latino culture. It's a living gallery of resistance art.",
-    fullDescription: "In 1984, during civil wars in Central America, local artists transformed this alley into a canvas for protest and healing. The murals honor the victims of violence in El Salvador, Guatemala, and Nicaragua. Today's murals continue addressing immigration, women's rights, and Indigenous heritage. The project inspired similar mural alleys worldwide and remains a pilgrimage site for art lovers.",
-    hints: ['Between 24th and 25th Streets', 'Runs parallel to Treat Avenue'],
   },
 
   // Hidden Gems

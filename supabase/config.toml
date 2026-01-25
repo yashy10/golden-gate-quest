@@ -2,3 +2,9 @@ project_id = "qhztihvjfdovxkdsyebp"
 
 [functions.generate-quest]
 verify_jwt = false
+
+[functions.tts-proxy]
+verify_jwt = false
+
+[functions.chat-itinerary]
+verify_jwt = false

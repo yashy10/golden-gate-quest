@@ -1,0 +1,41 @@
+import { createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+import { Readable } from 'node:stream'
+
+function getArg(name: string, def?: string): string | undefined {
+  const idx = process.argv.indexOf(name)
+  if (idx !== -1 && idx + 1 < process.argv.length) return process.argv[idx + 1]
+  return def
+}
+
+async function tts(baseUrl: string, text: string, voiceUrl: string | undefined, outPath: string) {
+  const url = baseUrl.replace(/\/+$/, '') + '/tts'
+
+  const form = new FormData()
+  form.append('text', text)
+  if (voiceUrl) form.append('voice_url', voiceUrl)
+
+  const res = await fetch(url, { method: 'POST', body: form })
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status} ${res.statusText}\n${errText}`)
+  }
+  if (!res.body) throw new Error('No response body')
+
+  await pipeline(Readable.fromWeb(res.body as any), createWriteStream(outPath))
+  console.log(`Saved WAV to: ${outPath}`)
+}
+
+async function main() {
+  const baseUrl = getArg('--base-url', 'https://c257b4e5d3c0.ngrok-free.app')!
+  const text = getArg('--text', 'hello from typescript')!
+  const voiceUrl = getArg('--voice-url', 'alba')
+  const out = getArg('--out', 'out.wav')!
+
+  await tts(baseUrl, text, voiceUrl, out)
+}
+
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

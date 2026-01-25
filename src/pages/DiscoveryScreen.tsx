@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Mic, ArrowRight, Download } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Mic, ArrowRight, Download, Volume2, Pause, Play, Square, Loader2 } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
 import PhotoComparison from '@/components/PhotoComparison';
 import Confetti from '@/components/Confetti';
 import { useToast } from '@/hooks/use-toast';
+import { useTTS } from '@/hooks/useTTS';
 
 const DiscoveryScreen: React.FC = () => {
   const navigate = useNavigate();
@@ -12,11 +13,16 @@ const DiscoveryScreen: React.FC = () => {
   const { index } = useParams<{ index: string }>();
   const locationIndex = parseInt(index || '0', 10);
 
-  const { _hasHydrated, currentQuest, getProgress } = useQuestStore();
+  const { _hasHydrated, currentQuest, getProgress, generatedHistoricPhotos } = useQuestStore();
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const tts = useTTS();
+  
+  // Get the AI-generated historic photo if available, otherwise fall back to location's historic image
+  const generatedHistoricPhoto = generatedHistoricPhotos[locationIndex];
 
   // Detect if running on iOS
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -249,11 +255,14 @@ const DiscoveryScreen: React.FC = () => {
         <div className="fade-in-up" style={{ animationDelay: '0.2s' }}>
           <h2 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
             <span>📸</span> Then & Now
+            {generatedHistoricPhoto && (
+              <span className="text-xs text-accent font-normal">✨ AI Time Machine</span>
+            )}
           </h2>
           <PhotoComparison
             currentPhoto={userPhoto}
-            historicPhoto={location.historicImage}
-            historicYear={location.historicYear}
+            historicPhoto={generatedHistoricPhoto || location.historicImage}
+            historicYear={generatedHistoricPhoto ? "~20 years ago" : location.historicYear}
           />
 
           {/* Save Photo Buttons */}
@@ -267,21 +276,95 @@ const DiscoveryScreen: React.FC = () => {
               {isSaving ? 'Saving...' : 'Save Your Photo'}
             </button>
             <button
-              onClick={() => handleSavePhoto(location.historicImage, `${location.name.replace(/\s+/g, '-')}-${location.historicYear}`)}
+              onClick={() => handleSavePhoto(generatedHistoricPhoto || location.historicImage, `${location.name.replace(/\s+/g, '-')}-vintage`)}
               disabled={isSaving}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-muted text-muted-foreground text-sm font-medium disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save Historic'}
+              {isSaving ? 'Saving...' : 'Save Vintage'}
             </button>
           </div>
         </div>
 
         {/* The Story */}
         <div className="card-quest p-5 fade-in-up" style={{ animationDelay: '0.3s' }}>
-          <h2 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-            <span>📖</span> The Story
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <span>📖</span> The Story
+            </h2>
+            
+            {/* TTS Listen Button */}
+            <div className="flex items-center gap-1">
+              {tts.isLoading ? (
+                <button
+                  disabled
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium"
+                  aria-label="Generating audio..."
+                >
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Loading...
+                </button>
+              ) : tts.isPlaying ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={tts.pause}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                    aria-label="Pause audio"
+                  >
+                    <Pause className="w-3.5 h-3.5" />
+                    Pause
+                  </button>
+                  <button
+                    onClick={tts.stop}
+                    className="p-1.5 rounded-full bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    aria-label="Stop audio"
+                  >
+                    <Square className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : tts.isPaused ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={tts.resume}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                    aria-label="Resume audio"
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Resume
+                  </button>
+                  <button
+                    onClick={tts.stop}
+                    className="p-1.5 rounded-full bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    aria-label="Stop audio"
+                  >
+                    <Square className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    const fullText = showFullDescription 
+                      ? `${location.shortSummary} ${location.fullDescription}`
+                      : location.shortSummary;
+                    tts.speak(fullText);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground text-xs font-medium hover:bg-secondary/80 transition-colors"
+                  aria-label="Listen to story"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  Listen
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {/* Show TTS error */}
+          {tts.error && (
+            <div className="mb-3 p-2 rounded-lg bg-destructive/10 text-destructive text-xs">
+              {tts.error}
+            </div>
+          )}
+          
           <p className="text-foreground text-sm leading-relaxed">
             {location.shortSummary}
           </p>
