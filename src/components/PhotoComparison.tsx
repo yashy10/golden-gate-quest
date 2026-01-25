@@ -120,7 +120,7 @@ const PhotoComparison: React.FC<PhotoComparisonProps> = ({
           sliderPosition < 85 ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        Circa {historicYear}
+        {historicYear.startsWith('~') ? historicYear : `Circa ${historicYear}`}
       </div>
 
       {/* Drag hint (only shows initially) */}

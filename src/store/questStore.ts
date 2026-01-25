@@ -6,6 +6,9 @@ interface QuestState {
   // Current quest
   currentQuest: Quest | null;
   
+  // Generated historic photos (AI-aged versions)
+  generatedHistoricPhotos: Record<number, string>;
+  
   // Onboarding state
   onboardingStep: number;
   preferences: Partial<UserPreferences>;
@@ -26,6 +29,7 @@ interface QuestState {
   startQuest: () => void;
   setQuest: (quest: Quest) => void;
   completeLocation: (index: number, photoUrl?: string) => void;
+  setGeneratedHistoricPhoto: (index: number, photoUrl: string) => void;
   visitFoodStop: () => void;
   resetQuest: () => void;
   
@@ -41,6 +45,7 @@ export const useQuestStore = create<QuestState>()(
   persist(
     (set, get) => ({
       currentQuest: null,
+      generatedHistoricPhotos: {},
       onboardingStep: 1,
       preferences: {},
       selectedCategories: [],
@@ -121,6 +126,14 @@ export const useQuestStore = create<QuestState>()(
           };
         }),
       
+      setGeneratedHistoricPhoto: (index: number, photoUrl: string) =>
+        set((state) => ({
+          generatedHistoricPhotos: {
+            ...state.generatedHistoricPhotos,
+            [index]: photoUrl,
+          },
+        })),
+      
       visitFoodStop: () => 
         set((state) => {
           if (!state.currentQuest) return state;
@@ -135,6 +148,7 @@ export const useQuestStore = create<QuestState>()(
       resetQuest: () => 
         set({
           currentQuest: null,
+          generatedHistoricPhotos: {},
           onboardingStep: 1,
           preferences: {},
           selectedCategories: [],

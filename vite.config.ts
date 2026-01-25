@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         "/api/dgx": {
-          target: env.VITE_DGX_URL || "http://192.168.128.247:8000",
+          target: env.VITE_DGX_URL || "http://192.168.128.247:8022",
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/dgx/, ""),
         },

@@ -13,13 +13,16 @@ const DiscoveryScreen: React.FC = () => {
   const { index } = useParams<{ index: string }>();
   const locationIndex = parseInt(index || '0', 10);
 
-  const { _hasHydrated, currentQuest, getProgress } = useQuestStore();
+  const { _hasHydrated, currentQuest, getProgress, generatedHistoricPhotos } = useQuestStore();
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
   const tts = useTTS();
+  
+  // Get the AI-generated historic photo if available, otherwise fall back to location's historic image
+  const generatedHistoricPhoto = generatedHistoricPhotos[locationIndex];
 
   // Detect if running on iOS
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -252,11 +255,14 @@ const DiscoveryScreen: React.FC = () => {
         <div className="fade-in-up" style={{ animationDelay: '0.2s' }}>
           <h2 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
             <span>📸</span> Then & Now
+            {generatedHistoricPhoto && (
+              <span className="text-xs text-accent font-normal">✨ AI Time Machine</span>
+            )}
           </h2>
           <PhotoComparison
             currentPhoto={userPhoto}
-            historicPhoto={location.historicImage}
-            historicYear={location.historicYear}
+            historicPhoto={generatedHistoricPhoto || location.historicImage}
+            historicYear={generatedHistoricPhoto ? "~20 years ago" : location.historicYear}
           />
 
           {/* Save Photo Buttons */}
@@ -270,12 +276,12 @@ const DiscoveryScreen: React.FC = () => {
               {isSaving ? 'Saving...' : 'Save Your Photo'}
             </button>
             <button
-              onClick={() => handleSavePhoto(location.historicImage, `${location.name.replace(/\s+/g, '-')}-${location.historicYear}`)}
+              onClick={() => handleSavePhoto(generatedHistoricPhoto || location.historicImage, `${location.name.replace(/\s+/g, '-')}-vintage`)}
               disabled={isSaving}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-muted text-muted-foreground text-sm font-medium disabled:opacity-50"
             >
               <Download className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save Historic'}
+              {isSaving ? 'Saving...' : 'Save Vintage'}
             </button>
           </div>
         </div>

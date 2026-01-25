@@ -1,15 +1,17 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Navigation, Camera, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Navigation, Camera, Lightbulb, Loader2 } from 'lucide-react';
 import { useQuestStore } from '@/store/questStore';
+import { supabase } from '@/integrations/supabase/client';
 
 const LocationScreen: React.FC = () => {
   const navigate = useNavigate();
   const { index } = useParams<{ index: string }>();
   const locationIndex = parseInt(index || '0', 10);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   
-  const { _hasHydrated, currentQuest, completeLocation } = useQuestStore();
+  const { _hasHydrated, currentQuest, completeLocation, setGeneratedHistoricPhoto } = useQuestStore();
 
   if (!_hasHydrated) {
     return (
@@ -35,14 +37,53 @@ const LocationScreen: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      // Complete the location with captured photo
+    if (!file) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Create blob URL for user's photo
       const photoUrl = URL.createObjectURL(file);
+      
+      // Complete the location with captured photo immediately
       completeLocation(locationIndex, photoUrl);
+      
+      // Convert file to base64 for API
+      const base64 = await fileToBase64(file);
+      
+      // Call edge function to generate aged version
+      const { data, error } = await supabase.functions.invoke('age-photo', {
+        body: { 
+          imageBase64: base64,
+          decadesBack: 2 // 20 years back
+        },
+      });
+      
+      if (!error && data?.agedImageUrl) {
+        // Store the generated historic photo
+        setGeneratedHistoricPhoto(locationIndex, data.agedImageUrl);
+        console.log(`Generated ${data.yearsBack} years aged photo for location ${locationIndex}`);
+      } else {
+        console.warn('Could not generate aged photo:', error || 'No image returned');
+      }
+    } catch (err) {
+      console.error('Error processing photo:', err);
+    } finally {
+      setIsProcessing(false);
       navigate(`/discovery/${locationIndex}`);
     }
+    
     // Reset input so same file can be selected again
     event.target.value = '';
   };
@@ -60,6 +101,25 @@ const LocationScreen: React.FC = () => {
         onChange={handleFileChange}
         className="hidden"
       />
+
+      {/* Processing overlay */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-50 bg-background/90 flex flex-col items-center justify-center gap-4">
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full gradient-primary flex items-center justify-center">
+              <Loader2 className="w-10 h-10 text-primary-foreground animate-spin" />
+            </div>
+          </div>
+          <div className="text-center px-8">
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              ✨ Creating Time Machine
+            </h3>
+            <p className="text-muted-foreground text-sm">
+              Generating a vintage version of your photo from decades ago...
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="relative">
@@ -103,14 +163,16 @@ const LocationScreen: React.FC = () => {
             <div className="flex gap-3">
               <button
                 onClick={handleNavigate}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-secondary text-secondary-foreground font-semibold"
+                disabled={isProcessing}
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-secondary text-secondary-foreground font-semibold disabled:opacity-50"
               >
                 <Navigation className="w-5 h-5" />
                 Navigate Here
               </button>
               <button
                 onClick={handleTakePhoto}
-                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-button"
+                disabled={isProcessing}
+                className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-button disabled:opacity-50"
               >
                 <Camera className="w-5 h-5" />
                 Take Photo
@@ -121,7 +183,8 @@ const LocationScreen: React.FC = () => {
                 completeLocation(locationIndex, location.heroImage);
                 navigate(`/discovery/${locationIndex}`);
               }}
-              className="w-full py-2.5 rounded-xl bg-muted text-muted-foreground font-medium text-sm"
+              disabled={isProcessing}
+              className="w-full py-2.5 rounded-xl bg-muted text-muted-foreground font-medium text-sm disabled:opacity-50"
             >
               Skip (Testing Only)
             </button>
