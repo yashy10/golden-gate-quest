@@ -1,363 +1,129 @@
-# 🌉 Golden Gate Quest
+# SF Quest (Golden Gate Quest)
 
-A gamified urban exploration platform for San Francisco that transforms the city into an interactive quest map. Users can discover landmarks, complete challenges, and earn rewards while exploring the Golden Gate area.
+A gamified mobile web application that enables users to discover San Francisco through a personalized photo-based treasure hunt, revealing the city's cultural history and hidden stories.
 
-**Live Demo**: [Your deployment URL]  
-**Repository**: https://github.com/yashy10/golden-gate-quest
+## Cultural Impact Track
 
----
+**Focus:** Celebrating the soul of San Francisco through arts, recreation, and community identity.
 
-## 📋 Table of Contents
+**The Goal:** Use data to make the city's rich cultural and recreational offerings more accessible, and to preserve the history of its unique neighborhoods.
 
-- [Quick Start](#-quick-start)
-- [Tech Stack](#-tech-stack)
-- [Architecture](#-architecture)
-- [Features](#-features)
-- [Reproducing the Demo](#-reproducing-the-demo)
-- [Datasets](#-datasets)
-- [Deployment](#-deployment)
-- [Contributing](#-contributing)
+SF Quest brings San Francisco's cultural heritage to life by:
+- Making historic landmarks and cultural sites discoverable through gamified exploration
+- Preserving neighborhood stories and community identity through AI-powered storytelling
+- Connecting users with local small businesses, arts venues, and recreation spots
+- Using geographic and cultural datasets to create personalized, meaningful experiences
 
----
+**Dataset Categories Used:** Culture and Recreation, Economy & Community (Small Business), Film Commission, Geographic Data.
 
-## 🚀 Quick Start
+## Features
+
+- **Personalized Itineraries** - Answer preference questions (age, budget, mobility, time) to get a custom quest tailored to you
+- **Photo Treasure Hunt** - Visit 5-6 curated locations and capture photos to unlock historical stories
+- **AI Voice Guide** - Real-time voice interaction powered by Pipecat for immersive exploration
+- **Historic Photo Comparison** - Side-by-side slider comparing your captures with historic images
+- **Cultural Categories** - Explore SF through themes like architecture, food, parks, and more
+- **Achievement System** - Earn shareable badges upon quest completion
+
+## Tech Stack
+
+**Frontend:**
+- React 18 + TypeScript
+- Vite
+- Tailwind CSS + shadcn-ui
+- Zustand (state management)
+- TanStack Query
+- Pipecat AI (voice)
+
+**Backend:**
+- FastAPI (Python)
+- NeMo Embeddings
+- CuVS Vector Search
+- Diffusion Models (img2img)
+
+**Infrastructure:**
+- Supabase (PostgreSQL)
+- OpenAI API
+- PWA Support
+
+## Getting Started
 
 ### Prerequisites
 
-- **Node.js** (v18 or higher) & npm
-- **Docker** & Docker Compose (for backend services)
-- **Supabase** account (for database)
-- **DGX Spark** access (for hosting backend containers)
+- Node.js 18+
+- npm or yarn
+- Python 3.10+ (for backend services)
+- NVIDIA GPU with CUDA (optional, for local inference)
 
 ### Frontend Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/yashy10/golden-gate-quest.git
-cd golden-gate-quest
-
 # Install dependencies
 npm install
-# or
-bun install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys (see Environment Variables section)
 
 # Start development server
 npm run dev
+
+# Or with specific LLM provider
+npm run dev:openai    # Uses OpenAI API
+npm run dev:dgx       # Uses local DGX GPU
+
+# Build for production
+npm run build
+
+# Run tests
+npm test
 ```
 
-The application will be available at `http://localhost:5173`
-
-### Backend Setup (DGX Spark)
-
-The backend services are containerized and deployed on DGX Spark:
+### Backend Setup
 
 ```bash
-# Navigate to backend directory
-cd backend
+cd backend/tarun_rag
 
-# Build and start all services
-docker-compose up -d
+# Install Python dependencies
+pip install -r requirements.txt
 
-# Check service status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
+# Start services
+bash start.sh
 ```
 
----
-
-## 🛠 Tech Stack
-
-### Frontend
-- **Framework**: React 18 + TypeScript
-- **Build Tool**: Vite
-- **UI Components**: shadcn-ui
-- **Styling**: Tailwind CSS
-- **State Management**: React Context/Hooks
-- **Mapping**: Leaflet / Mapbox GL JS
-- **HTTP Client**: Axios
-
-### Backend (Docker Containers on DGX Spark)
-- **API Server**: Node.js/Express or Python/FastAPI
-- **Database**: PostgreSQL (Supabase)
-- **Authentication**: Supabase Auth
-- **Real-time**: Supabase Realtime
-- **Containerization**: Docker + Docker Compose
-
-### Infrastructure
-- **Hosting**: 
-  - Frontend: Lovable.dev / Vercel
-  - Backend: DGX Spark (Docker containers)
-- **Database**: Supabase (PostgreSQL)
-- **Storage**: Supabase Storage
-
----
-
-## 🏗 Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Frontend (React)                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Map View    │  │  Quest UI    │  │  Profile     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└────────────────────────┬────────────────────────────────────┘
-                         │ HTTPS/WSS
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│              DGX Spark (Docker Containers)                   │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  API Gateway (Nginx/Traefik)                         │   │
-│  └────────────────┬─────────────────────────────────────┘   │
-│                   │                                          │
-│  ┌────────────────┼──────────────┬──────────────────────┐   │
-│  │                │               │                      │   │
-│  ▼                ▼               ▼                      ▼   │
-│  ┌─────────┐  ┌────────┐  ┌──────────┐  ┌────────────┐     │
-│  │ Auth    │  │ Quest  │  │ Location │  │ Analytics  │     │
-│  │ Service │  │ Service│  │ Service  │  │ Service    │     │
-│  └─────────┘  └────────┘  └──────────┘  └────────────┘     │
-└────────────────────┬────────────────────────────────────────┘
-                     │
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Supabase (PostgreSQL)                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  Users       │  │  Quests      │  │  Locations   │      │
-│  │  Progress    │  │  Rewards     │  │  POIs        │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-1. **User Authentication**: Frontend → Supabase Auth → Backend validates
-2. **Quest Loading**: Frontend → Backend API → Database → GeoJSON response
-3. **Location Updates**: Frontend (GPS) → Location Service → Real-time updates
-4. **Quest Completion**: Frontend → Quest Service → Validation → Reward unlock
-
----
-
-## ✨ Features
-
-- 🗺 **Interactive Map**: Explore San Francisco with real-time location tracking
-- 🎯 **Quest System**: Complete location-based challenges and missions
-- 🏆 **Rewards & Achievements**: Earn points, badges, and unlock new areas
-- 📍 **POI Discovery**: Learn about landmarks, restaurants, parks, and transit
-- 👥 **Social Features**: Compete with friends on leaderboards
-- 📱 **Mobile-First**: Responsive design optimized for mobile exploration
-- 🔔 **Real-time Notifications**: Get alerted when near quest locations
-
----
-
-## 🔄 Reproducing the Demo
-
-### 1. Environment Variables
+### Environment Variables
 
 Create a `.env` file in the root directory:
 
-```bash
-# Supabase
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-
-# Backend API (DGX Spark)
-VITE_API_BASE_URL=https://your-dgx-spark-url.com/api
-
-# Map Services
-VITE_MAPBOX_TOKEN=your_mapbox_access_token
-# or
-VITE_GOOGLE_MAPS_KEY=your_google_maps_key
-
-# Analytics (Optional)
-VITE_GA_TRACKING_ID=your_google_analytics_id
-
-# Feature Flags
-VITE_ENABLE_NOTIFICATIONS=true
-VITE_ENABLE_SOCIAL_FEATURES=true
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_PROJECT_ID=your_project_id
+VITE_SUPABASE_PUBLISHABLE_KEY=your_key
+VITE_OPENAI_API_KEY=your_openai_key
+VITE_DGX_URL=your_dgx_url
+VITE_LLM_PROVIDER=openai
+VITE_VOICE_URL=your_voice_service_url
 ```
 
-### 2. Backend Environment Variables
+## Project Structure
 
-Create a `.env` file in the `backend/` directory:
-
-```bash
-# Database
-DATABASE_URL=postgresql://user:password@host:5432/dbname
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_SERVICE_KEY=your_supabase_service_role_key
-
-# API Configuration
-PORT=3000
-NODE_ENV=production
-JWT_SECRET=your_jwt_secret_key
-
-# External Services
-MAPBOX_API_KEY=your_mapbox_api_key
-GEOCODING_API_KEY=your_geocoding_service_key
-
-# Redis (for caching)
-REDIS_URL=redis://localhost:6379
-
-# Logging
-LOG_LEVEL=info
+```
+├── src/
+│   ├── pages/           # Screen components (Splash, Onboarding, Itinerary, etc.)
+│   ├── components/      # Reusable UI components
+│   ├── store/           # Zustand state management
+│   ├── data/            # Location and category data
+│   ├── hooks/           # Custom React hooks
+│   └── lib/             # Utilities
+├── backend/
+│   ├── tarun_rag/       # RAG API with vector search
+│   ├── tarun_tts/       # Text-to-speech service
+│   └── tarun_diffusion/ # Image transformation
+├── supabase/            # Database migrations
+└── public/              # Static assets
 ```
 
-### 3. Sample .env Template
+## How It Works
 
-Copy `.env.example` to `.env` and fill in your credentials:
-
-```bash
-cp .env.example .env
-cd backend && cp .env.example .env
-```
-
-### 4. Database Setup
-
-```bash
-# Run migrations
-npm run db:migrate
-
-# Seed database with sample data
-npm run db:seed
-
-# Or use Supabase migrations
-supabase db push
-```
-
-### 5. Start All Services
-
-```bash
-# Terminal 1 - Frontend
-npm run dev
-
-# Terminal 2 - Backend (DGX Spark)
-cd backend
-docker-compose up
-
-# Or deploy to DGX Spark
-./scripts/deploy-dgx.sh
-```
-
-### 6. Access the Application
-
-- **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3000/api (or your DGX Spark URL)
-- **API Documentation**: http://localhost:3000/api/docs
-
----
-
-## 📊 Datasets
-
-The project includes several curated datasets for San Francisco locations:
-
-### Included CSV Files
-
-| Dataset | File | Records | Description |
-|---------|------|---------|-------------|
-| **Buildings** | `buildings.csv` | ~500 | Notable buildings and landmarks |
-| **Parks & Leisure** | `parks_and_leisure.csv` | ~200 | Parks, recreation areas, viewpoints |
-| **Restaurants & Cafes** | `restaurants_and_cafes.csv` | ~800 | Dining and cafe locations |
-| **Shops** | `shops.csv` | ~600 | Retail and shopping locations |
-| **Transit Stops** | `transit_stops.csv` | ~1000 | BART, Muni, bus stops |
-
-### Data Format
-
-All CSV files follow this structure:
-
-```csv
-name,latitude,longitude,category,description,image_url
-Golden Gate Bridge,37.8199,-122.4783,landmark,"Iconic suspension bridge",https://...
-```
-
-### Data Sources
-
-- San Francisco Open Data Portal
-- OpenStreetMap
-- Custom curated content
-- **Synthetic Data**: Some quest locations and challenges are procedurally generated for demonstration purposes
-
----
-
-## 🚢 Deployment
-
-### Frontend Deployment (Lovable/Vercel)
-
-```bash
-# Deploy to Lovable
-# Simply push to main branch - auto-deploys
-
-# Or deploy to Vercel
-npm run build
-vercel --prod
-```
-
-### Backend Deployment (DGX Spark)
-
-```bash
-# Build Docker images
-cd backend
-docker-compose build
-
-# Push to DGX Spark registry
-docker tag golden-gate-quest-api your-registry.dgx-spark.com/api:latest
-docker push your-registry.dgx-spark.com/api:latest
-
-# Deploy on DGX Spark
-kubectl apply -f kubernetes/deployment.yaml
-
-# Or use the deployment script
-./scripts/deploy-dgx.sh production
-```
-
-### Environment-Specific Configs
-
-- **Development**: `.env.development`
-- **Staging**: `.env.staging`
-- **Production**: `.env.production`
-
----
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# E2E tests
-npm run test:e2e
-
-# Backend tests
-cd backend
-docker-compose run api npm test
-```
-
----
-
-## 📝 API Documentation
-
-API documentation is available at `/api/docs` when running the backend.
-
-Key endpoints:
-
-- `GET /api/quests` - List available quests
-- `GET /api/locations/:id` - Get location details
-- `POST /api/quests/:id/complete` - Mark quest as complete
-- `GET /api/user/progress` - Get user progress
-
----
-
-## 🙏 Acknowledgments
-
-- San Francisco Open Data Portal for location datasets
-- Dell for DGX Spark provisions
-- Nvidia for event hosting and technical support
-- Arm for technical support
+1. **Onboarding** - Users answer quick questions about preferences
+2. **Category Selection** - Choose cultural themes to explore
+3. **Itinerary Generation** - AI creates a personalized route
+4. **Quest Mode** - Navigate to locations, capture photos, unlock stories
+5. **Discovery** - Compare your photos with historic images and learn the history
+6. **Achievement** - Complete the quest and earn shareable badges
