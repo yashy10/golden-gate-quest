@@ -48,8 +48,83 @@ interface ItineraryOption {
   foodStopIndex: number;
 }
 
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const MODEL = "google/gemini-2.5-flash";
+type AIProvider = "dgx" | "openai";
+
+interface AIProviderConfig {
+  url: string;
+  model: string;
+  getHeaders: () => Record<string, string>;
+  supportsToolCalling: boolean;
+}
+
+function getAIProviderConfig(provider: AIProvider): AIProviderConfig {
+  const NEMOTRON_URL = Deno.env.get("NEMOTRON_URL") || "http://192.168.128.247:8022";
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+
+  if (provider === "dgx") {
+    return {
+      url: `${NEMOTRON_URL}/v1/chat/completions`,
+      model: "nemotron-30b",
+      getHeaders: () => ({
+        "Content-Type": "application/json",
+      }),
+      supportsToolCalling: false,
+    };
+  }
+
+  // Fallback: OpenAI direct
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured");
+  }
+  return {
+    url: "https://api.openai.com/v1/chat/completions",
+    model: "gpt-4o-mini",
+    getHeaders: () => ({
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    }),
+    supportsToolCalling: true,
+  };
+}
+
+async function tryDGX(requestBody: any, providerConfig: AIProviderConfig): Promise<any> {
+  const response = await fetch(providerConfig.url, {
+    method: "POST",
+    headers: providerConfig.getHeaders(),
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("DGX API error:", response.status, errorText);
+    throw new Error(`DGX API error: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+async function tryOpenAI(requestBody: any, providerConfig: AIProviderConfig): Promise<any> {
+  const response = await fetch(providerConfig.url, {
+    method: "POST",
+    headers: providerConfig.getHeaders(),
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("OpenAI API error:", response.status, errorText);
+    
+    if (response.status === 429) {
+      throw new Error("RATE_LIMIT");
+    }
+    if (response.status === 402) {
+      throw new Error("PAYMENT_REQUIRED");
+    }
+    throw new Error(`OpenAI API error: ${response.status}`);
+  }
+
+  return await response.json();
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -61,13 +136,6 @@ serve(async (req) => {
     console.log("Received request:", JSON.stringify(requestData, null, 2));
 
     const { type, messages = [], categories, preferences, availableLocations, availableFoodStops, currentItineraries } = requestData;
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
-
-    console.log(`Using Lovable AI Gateway with model: ${MODEL}`);
 
     const baseContext = `You are an expert San Francisco tour guide and travel curator. You help create personalized quests/itineraries.
 
@@ -90,16 +158,18 @@ Option 1: ${currentItineraries.option1 ? `${currentItineraries.option1.theme} - 
 Option 2: ${currentItineraries.option2 ? `${currentItineraries.option2.theme} - Locations: ${currentItineraries.option2.locationIndices.join(', ')}, Food Stop: ${currentItineraries.option2.foodStopIndex}` : 'Not generated yet'}
 ` : ''}`;
 
-    let requestBody: Record<string, unknown>;
+    // Try DGX first, fallback to OpenAI
+    let aiProvider: AIProvider = "dgx";
+    let providerConfig = getAIProviderConfig(aiProvider);
+    let usedProvider = "dgx";
+
+    const jsonInstructions = `
+
+IMPORTANT: You must respond with ONLY a valid JSON object, no markdown, no code blocks, no other text.`;
 
     if (type === "generate") {
-      requestBody = {
-        model: MODEL,
-        messages: [
-          { role: "system", content: baseContext + "\n\nWhen generating or modifying itineraries, always respond with valid JSON using the tools provided." },
-          {
-            role: "user",
-            content: `Generate two distinct and diverse itinerary options for this San Francisco quest.
+      const systemPrompt = baseContext + jsonInstructions;
+      const userPrompt = `Generate two distinct and diverse itinerary options for this San Francisco quest.
 
 Each option should have:
 - A unique theme and feel
@@ -107,163 +177,273 @@ Each option should have:
 - 1 food stop that matches the budget and route
 - Different vibes (e.g., one more adventurous, one more relaxed; one more touristy, one more local)
 
-Make sure the two options are meaningfully different so the user has a real choice.`
-          }
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "create_itinerary_options",
-              description: "Create two distinct itinerary options for the user to choose from",
-              parameters: {
-                type: "object",
-                properties: {
-                  option1: {
+Respond with ONLY this JSON format:
+{
+  "option1": {
+    "theme": "Theme name",
+    "description": "Brief description",
+    "locationIndices": [1, 2, 3, 4, 5],
+    "foodStopIndex": 1
+  },
+  "option2": {
+    "theme": "Theme name",
+    "description": "Brief description",
+    "locationIndices": [1, 2, 3, 4, 5],
+    "foodStopIndex": 1
+  }
+}`;
+
+      let aiResponse: any;
+      
+      try {
+        console.log(`Trying DGX at ${providerConfig.url}`);
+        aiResponse = await tryDGX({
+          model: providerConfig.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: 1000,
+          temperature: 0.7,
+        }, providerConfig);
+        usedProvider = "dgx";
+      } catch (dgxError) {
+        console.error("DGX failed, falling back to OpenAI:", dgxError);
+        aiProvider = "openai";
+        providerConfig = getAIProviderConfig(aiProvider);
+        
+        try {
+          console.log(`Trying OpenAI at ${providerConfig.url}`);
+          aiResponse = await tryOpenAI({
+            model: providerConfig.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "create_itinerary_options",
+                  description: "Create two distinct itinerary options for the user to choose from",
+                  parameters: {
                     type: "object",
                     properties: {
-                      theme: { type: "string", description: "Catchy theme name for this itinerary" },
-                      description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
-                      locationIndices: {
-                        type: "array",
-                        items: { type: "number" },
-                        description: "Array of 5 location indices in optimal order"
+                      option1: {
+                        type: "object",
+                        properties: {
+                          theme: { type: "string", description: "Catchy theme name for this itinerary" },
+                          description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
+                          locationIndices: {
+                            type: "array",
+                            items: { type: "number" },
+                            description: "Array of 5 location indices in optimal order"
+                          },
+                          foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
+                        },
+                        required: ["theme", "description", "locationIndices", "foodStopIndex"]
                       },
-                      foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
+                      option2: {
+                        type: "object",
+                        properties: {
+                          theme: { type: "string", description: "Catchy theme name for this itinerary" },
+                          description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
+                          locationIndices: {
+                            type: "array",
+                            items: { type: "number" },
+                            description: "Array of 5 location indices in optimal order"
+                          },
+                          foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
+                        },
+                        required: ["theme", "description", "locationIndices", "foodStopIndex"]
+                      }
                     },
-                    required: ["theme", "description", "locationIndices", "foodStopIndex"]
-                  },
-                  option2: {
-                    type: "object",
-                    properties: {
-                      theme: { type: "string", description: "Catchy theme name for this itinerary" },
-                      description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
-                      locationIndices: {
-                        type: "array",
-                        items: { type: "number" },
-                        description: "Array of 5 location indices in optimal order"
-                      },
-                      foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
-                    },
-                    required: ["theme", "description", "locationIndices", "foodStopIndex"]
+                    required: ["option1", "option2"],
+                    additionalProperties: false
                   }
-                },
-                required: ["option1", "option2"],
-                additionalProperties: false
+                }
               }
-            }
+            ],
+            tool_choice: { type: "function", function: { name: "create_itinerary_options" } }
+          }, providerConfig);
+          usedProvider = "openai";
+        } catch (openaiError: any) {
+          if (openaiError.message === "RATE_LIMIT") {
+            return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
+              status: 429,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
           }
-        ],
-        tool_choice: { type: "function", function: { name: "create_itinerary_options" } }
-      };
+          if (openaiError.message === "PAYMENT_REQUIRED") {
+            return new Response(JSON.stringify({ error: "Payment required, please add funds." }), {
+              status: 402,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          throw openaiError;
+        }
+      }
+
+      console.log(`AI response from ${usedProvider}:`, JSON.stringify(aiResponse, null, 2));
+
+      let functionArgs: any;
+      
+      // Handle tool calling response (OpenAI)
+      const message = aiResponse.choices?.[0]?.message;
+      if (message?.tool_calls?.[0]) {
+        const toolCall = message.tool_calls[0];
+        functionArgs = JSON.parse(toolCall.function.arguments);
+      } else if (message?.content) {
+        // Handle plain text response (DGX/Nemotron)
+        const content = message.content;
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          functionArgs = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error("No JSON found in response");
+        }
+      } else {
+        throw new Error("Unexpected AI response format");
+      }
+
+      return new Response(JSON.stringify({
+        type: "itineraries",
+        data: functionArgs,
+        provider: usedProvider
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
     } else {
-      // Chat mode with tools
-      requestBody = {
-        model: MODEL,
-        messages: [
-          { role: "system", content: baseContext + "\n\nWhen chatting, be helpful and confirm any changes you make to the itineraries." },
-          ...messages
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "update_itinerary",
-              description: "Update one or both itinerary options based on user request",
-              parameters: {
-                type: "object",
-                properties: {
-                  option1: {
+      // Chat mode
+      const systemPrompt = baseContext + "\n\nWhen chatting, be helpful and confirm any changes you make to the itineraries. Respond with JSON when making updates, or plain text for conversation.";
+      
+      let aiResponse: any;
+      
+      try {
+        console.log(`Trying DGX for chat at ${providerConfig.url}`);
+        aiResponse = await tryDGX({
+          model: providerConfig.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...messages
+          ],
+          max_tokens: 1000,
+          temperature: 0.7,
+        }, providerConfig);
+        usedProvider = "dgx";
+      } catch (dgxError) {
+        console.error("DGX failed for chat, falling back to OpenAI:", dgxError);
+        aiProvider = "openai";
+        providerConfig = getAIProviderConfig(aiProvider);
+        
+        try {
+          aiResponse = await tryOpenAI({
+            model: providerConfig.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...messages
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "update_itinerary",
+                  description: "Update one or both itinerary options based on user request",
+                  parameters: {
                     type: "object",
-                    description: "Updated option 1 (only include if changing)",
                     properties: {
-                      theme: { type: "string" },
-                      description: { type: "string" },
-                      locationIndices: { type: "array", items: { type: "number" } },
-                      foodStopIndex: { type: "number" }
-                    }
-                  },
-                  option2: {
-                    type: "object",
-                    description: "Updated option 2 (only include if changing)",
-                    properties: {
-                      theme: { type: "string" },
-                      description: { type: "string" },
-                      locationIndices: { type: "array", items: { type: "number" } },
-                      foodStopIndex: { type: "number" }
-                    }
-                  },
-                  chatResponse: {
-                    type: "string",
-                    description: "Your response to the user explaining changes or answering their question"
+                      option1: {
+                        type: "object",
+                        description: "Updated option 1 (only include if changing)",
+                        properties: {
+                          theme: { type: "string" },
+                          description: { type: "string" },
+                          locationIndices: { type: "array", items: { type: "number" } },
+                          foodStopIndex: { type: "number" }
+                        }
+                      },
+                      option2: {
+                        type: "object",
+                        description: "Updated option 2 (only include if changing)",
+                        properties: {
+                          theme: { type: "string" },
+                          description: { type: "string" },
+                          locationIndices: { type: "array", items: { type: "number" } },
+                          foodStopIndex: { type: "number" }
+                        }
+                      },
+                      chatResponse: {
+                        type: "string",
+                        description: "Your response to the user explaining changes or answering their question"
+                      }
+                    },
+                    required: ["chatResponse"],
+                    additionalProperties: false
                   }
-                },
-                required: ["chatResponse"],
-                additionalProperties: false
+                }
               }
-            }
+            ],
+            tool_choice: "auto"
+          }, providerConfig);
+          usedProvider = "openai";
+        } catch (openaiError: any) {
+          if (openaiError.message === "RATE_LIMIT") {
+            return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
+              status: 429,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
           }
-        ],
-        tool_choice: "auto"
-      };
-    }
+          throw openaiError;
+        }
+      }
 
-    console.log("Sending request to Lovable AI:", JSON.stringify(requestBody, null, 2));
+      console.log(`Chat response from ${usedProvider}:`, JSON.stringify(aiResponse, null, 2));
 
-    const response = await fetch(LOVABLE_AI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-      },
-      body: JSON.stringify(requestBody),
-    });
+      const message = aiResponse.choices?.[0]?.message;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Lovable AI error:", response.status, errorText);
+      if (message?.tool_calls?.[0]) {
+        const toolCall = message.tool_calls[0];
+        const functionArgs = JSON.parse(toolCall.function.arguments);
 
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
-          status: 429,
+        return new Response(JSON.stringify({
+          type: "update",
+          data: functionArgs,
+          provider: usedProvider
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } else if (message?.content) {
+        // Check if DGX response contains JSON for updates
+        const content = message.content;
+        const jsonMatch = content.match(/\{[\s\S]*"option1"[\s\S]*\}|\{[\s\S]*"option2"[\s\S]*\}|\{[\s\S]*"chatResponse"[\s\S]*\}/);
+        
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return new Response(JSON.stringify({
+              type: "update",
+              data: parsed,
+              provider: usedProvider
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          } catch {
+            // Not valid JSON, treat as chat response
+          }
+        }
+        
+        return new Response(JSON.stringify({
+          type: "chat",
+          data: { chatResponse: content },
+          provider: usedProvider
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required, please add funds to your workspace." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
 
-      throw new Error(`Lovable AI error: ${response.status} ${errorText}`);
+      throw new Error("Unexpected AI response format");
     }
-
-    const aiResponse = await response.json();
-    console.log("AI response:", JSON.stringify(aiResponse, null, 2));
-
-    const message = aiResponse.choices?.[0]?.message;
-
-    if (message?.tool_calls?.[0]) {
-      const toolCall = message.tool_calls[0];
-      const functionArgs = JSON.parse(toolCall.function.arguments);
-
-      return new Response(JSON.stringify({
-        type: type === "generate" ? "itineraries" : "update",
-        data: functionArgs
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    } else if (message?.content) {
-      return new Response(JSON.stringify({
-        type: "chat",
-        data: { chatResponse: message.content }
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    throw new Error("Unexpected AI response format");
 
   } catch (error) {
     console.error("chat-itinerary error:", error);
