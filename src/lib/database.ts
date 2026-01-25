@@ -94,7 +94,8 @@ export async function getLocations(options?: {
   neighborhoods?: string[];
   limit?: number;
 }) {
-  let query = supabase.from("locations").select("*");
+  // Use type assertion since auto-generated types may not be updated yet
+  let query = (supabase.from as any)("locations").select("*");
 
   if (options?.categories?.length) {
     query = query.in("category", options.categories);
@@ -130,7 +131,8 @@ export async function getFoodStops(options?: {
   neighborhoods?: string[];
   limit?: number;
 }) {
-  let query = supabase.from("food_stops").select("*");
+  // Use type assertion since auto-generated types may not be updated yet
+  let query = (supabase.from as any)("food_stops").select("*");
 
   if (options?.priceRanges?.length) {
     query = query.in("price_range", options.priceRanges);
@@ -158,8 +160,8 @@ export async function getFoodStops(options?: {
  * Get a single location by ID
  */
 export async function getLocationById(id: string) {
-  const { data, error } = await supabase
-    .from("locations")
+  // Use type assertion since auto-generated types may not be updated yet
+  const { data, error } = await (supabase.from as any)("locations")
     .select("*")
     .eq("id", id)
     .single();
@@ -207,7 +209,8 @@ export async function searchLocations(options: {
   matchThreshold?: number;
   limit?: number;
 }) {
-  const { data, error } = await supabase.rpc("match_locations", {
+  // Use type assertion since auto-generated types may not be updated yet
+  const { data, error } = await (supabase.rpc as any)("match_locations", {
     query_embedding: options.queryEmbedding,
     match_threshold: options.matchThreshold ?? 0.5,
     match_count: options.limit ?? 20,
@@ -237,7 +240,8 @@ export async function searchFoodStops(options: {
   matchThreshold?: number;
   limit?: number;
 }) {
-  const { data, error } = await supabase.rpc("match_food_stops", {
+  // Use type assertion since auto-generated types may not be updated yet
+  const { data, error } = await (supabase.rpc as any)("match_food_stops", {
     query_embedding: options.queryEmbedding,
     match_threshold: options.matchThreshold ?? 0.5,
     match_count: options.limit ?? 10,
@@ -264,8 +268,8 @@ export async function searchFoodStops(options: {
  * Get all unique neighborhoods from locations
  */
 export async function getNeighborhoods(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("locations")
+  // Use type assertion since auto-generated types may not be updated yet
+  const { data, error } = await (supabase.from as any)("locations")
     .select("neighborhood")
     .order("neighborhood");
 
@@ -275,7 +279,7 @@ export async function getNeighborhoods(): Promise<string[]> {
   }
 
   // Get unique neighborhoods
-  const neighborhoods = [...new Set(data.map((d) => d.neighborhood))];
+  const neighborhoods = [...new Set((data as { neighborhood: string }[]).map((d) => d.neighborhood))];
   return neighborhoods;
 }
 
@@ -285,7 +289,8 @@ export async function getNeighborhoods(): Promise<string[]> {
 export async function getLocationCountsByCategory(): Promise<
   Record<Category, number>
 > {
-  const { data, error } = await supabase.from("locations").select("category");
+  // Use type assertion since auto-generated types may not be updated yet
+  const { data, error } = await (supabase.from as any)("locations").select("category");
 
   if (error) {
     console.error("Error fetching location counts:", error);
@@ -293,7 +298,7 @@ export async function getLocationCountsByCategory(): Promise<
   }
 
   const counts: Record<string, number> = {};
-  for (const item of data) {
+  for (const item of data as { category: string }[]) {
     counts[item.category] = (counts[item.category] || 0) + 1;
   }
 
