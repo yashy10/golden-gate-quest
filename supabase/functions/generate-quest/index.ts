@@ -16,39 +16,42 @@ interface UserPreferences {
   groupSize: string;
 }
 
-type AIProvider = "openai" | "nemotron";
+type AIProvider = "dgx" | "openai";
 
 interface AIProviderConfig {
   url: string;
   model: string;
   getHeaders: () => Record<string, string>;
+  supportsToolCalling: boolean;
 }
 
 function getAIProviderConfig(provider: AIProvider): AIProviderConfig {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const NEMOTRON_URL = Deno.env.get("NEMOTRON_URL") || "http://192.168.128.247:8022";
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
-  if (provider === "nemotron") {
+  if (provider === "dgx") {
     return {
       url: `${NEMOTRON_URL}/v1/chat/completions`,
       model: "nemotron-30b",
       getHeaders: () => ({
         "Content-Type": "application/json",
       }),
+      supportsToolCalling: false,
     };
   }
 
-  // Default: OpenAI via Lovable AI Gateway
-  if (!LOVABLE_API_KEY) {
-    throw new Error("LOVABLE_API_KEY is not configured");
+  // Fallback: OpenAI direct
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured");
   }
   return {
-    url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-    model: "google/gemini-3-flash-preview",
+    url: "https://api.openai.com/v1/chat/completions",
+    model: "gpt-4o-mini",
     getHeaders: () => ({
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     }),
+    supportsToolCalling: true,
   };
 }
 
@@ -58,21 +61,15 @@ serve(async (req) => {
   }
 
   try {
-    const { categories, preferences, aiProvider: requestedProvider } = (await req.json()) as {
+    const { categories, preferences } = (await req.json()) as {
       categories: string[];
       preferences: UserPreferences;
-      aiProvider?: AIProvider;
     };
-
-    // Default to OpenAI, but allow Nemotron if explicitly requested
-    const aiProvider: AIProvider = requestedProvider === "nemotron" ? "nemotron" : "openai";
 
     console.log("Generating quest for categories:", categories);
     console.log("User preferences:", preferences);
-    console.log("Using AI provider:", aiProvider);
 
     // Get environment variables
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
@@ -84,16 +81,7 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // ============================================
-    // Step 1: Create embedding for user preferences (always use Lovable AI)
-    // ============================================
-    const preferenceText = buildPreferenceText(preferences, categories);
-    console.log("Preference text for embedding:", preferenceText);
-
-    // Use Lovable AI for embeddings via text generation (summarize to semantic text)
-    // For now, skip vector search and use category-based filtering for Nemotron compatibility
-    
-    // ============================================
-    // Step 2: Query locations with filters (simplified for Nemotron compatibility)
+    // Step 1: Query locations with filters
     // ============================================
     const needsAccessibility = preferences.mobility === "limited";
     const priceFilter = mapBudgetToPriceRanges(preferences.budget);
@@ -146,9 +134,13 @@ serve(async (req) => {
     }
 
     // ============================================
-    // Step 3: Use LLM to select optimal itinerary
+    // Step 2: Use LLM to select optimal itinerary
     // ============================================
-    const providerConfig = getAIProviderConfig(aiProvider);
+    
+    // Try DGX first, fallback to OpenAI
+    let aiProvider: AIProvider = "dgx";
+    let providerConfig = getAIProviderConfig(aiProvider);
+    let usedProvider: AIProvider = "dgx";
 
     const systemPrompt = `You are an expert San Francisco tour guide. Create the perfect personalized quest by selecting exactly 5 locations that would create the most enjoyable and cohesive experience.
 
@@ -201,12 +193,12 @@ ${(availableFoodStops || [])
 
 Respond with ONLY the JSON object containing locationIndices (array of 5 numbers), foodStopIndex (1 number), questTheme (string), and questDescription (string).`;
 
-    console.log(`Calling ${aiProvider} at ${providerConfig.url}`);
-
     let questData: any;
 
-    if (aiProvider === "nemotron") {
-      // Nemotron: Use simple completion without tool calling
+    // Try DGX first
+    try {
+      console.log(`Calling DGX at ${providerConfig.url}`);
+      
       const response = await fetch(providerConfig.url, {
         method: "POST",
         headers: providerConfig.getHeaders(),
@@ -223,128 +215,138 @@ Respond with ONLY the JSON object containing locationIndices (array of 5 numbers
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Nemotron API error:", response.status, errorText);
-        throw new Error(`Nemotron API error: ${response.status}`);
+        console.error("DGX API error:", response.status, errorText);
+        throw new Error(`DGX API error: ${response.status}`);
       }
 
       const aiResponse = await response.json();
       const content = aiResponse.choices?.[0]?.message?.content || "";
-      console.log("Nemotron response:", content);
+      console.log("DGX response:", content);
 
       // Parse JSON from response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        questData = JSON.parse(jsonMatch[0]);
+        usedProvider = "dgx";
+      } else {
+        throw new Error("No JSON found in DGX response");
+      }
+    } catch (dgxError) {
+      console.error("DGX failed, falling back to OpenAI:", dgxError);
+      
+      // Fallback to OpenAI
+      aiProvider = "openai";
+      providerConfig = getAIProviderConfig(aiProvider);
+      
       try {
-        // Try to extract JSON from the response
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          questData = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error("No JSON found in response");
+        console.log(`Calling OpenAI at ${providerConfig.url}`);
+        
+        const response = await fetch(providerConfig.url, {
+          method: "POST",
+          headers: providerConfig.getHeaders(),
+          body: JSON.stringify({
+            model: providerConfig.model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "create_quest",
+                  description:
+                    "Create a curated quest with selected locations and food stop",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      locationIndices: {
+                        type: "array",
+                        items: { type: "number" },
+                        description:
+                          "Array of 5 indices (1-based) from the available locations list, ordered for the best route",
+                      },
+                      foodStopIndex: {
+                        type: "number",
+                        description: "Index (1-based) of the selected food stop",
+                      },
+                      questTheme: {
+                        type: "string",
+                        description:
+                          "A catchy theme or title for this quest (e.g., 'Hidden Treasures of the Mission')",
+                      },
+                      questDescription: {
+                        type: "string",
+                        description:
+                          "A brief personalized description of why these locations were chosen",
+                      },
+                    },
+                    required: [
+                      "locationIndices",
+                      "foodStopIndex",
+                      "questTheme",
+                      "questDescription",
+                    ],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            ],
+            tool_choice: { type: "function", function: { name: "create_quest" } },
+          }),
+        });
+
+        if (!response.ok) {
+          if (response.status === 429) {
+            return new Response(
+              JSON.stringify({ error: "Rate limit exceeded. Please try again." }),
+              {
+                status: 429,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+          if (response.status === 402) {
+            return new Response(
+              JSON.stringify({ error: "AI credits exhausted. Please add more credits." }),
+              {
+                status: 402,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              }
+            );
+          }
+          const errorText = await response.text();
+          console.error("OpenAI API error:", response.status, errorText);
+          throw new Error(`OpenAI API error: ${response.status}`);
         }
-      } catch (parseError) {
-        console.error("Failed to parse Nemotron response:", parseError);
-        // Fallback: random selection
+
+        const aiResponse = await response.json();
+        const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
+
+        if (!toolCall || toolCall.function.name !== "create_quest") {
+          throw new Error("Unexpected OpenAI response format");
+        }
+
+        questData = JSON.parse(toolCall.function.arguments);
+        usedProvider = "openai";
+      } catch (openaiError) {
+        console.error("OpenAI also failed:", openaiError);
+        
+        // Ultimate fallback: random selection
         questData = {
           locationIndices: [1, 2, 3, 4, 5].slice(0, Math.min(5, availableLocations.length)),
           foodStopIndex: 1,
           questTheme: "San Francisco Discovery",
           questDescription: "A curated journey through the best of San Francisco.",
         };
+        usedProvider = "openai"; // Mark as fallback
       }
-    } else {
-      // OpenAI/Lovable AI: Use tool calling
-      const response = await fetch(providerConfig.url, {
-        method: "POST",
-        headers: providerConfig.getHeaders(),
-        body: JSON.stringify({
-          model: providerConfig.model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "create_quest",
-                description:
-                  "Create a curated quest with selected locations and food stop",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    locationIndices: {
-                      type: "array",
-                      items: { type: "number" },
-                      description:
-                        "Array of 5 indices (1-based) from the available locations list, ordered for the best route",
-                    },
-                    foodStopIndex: {
-                      type: "number",
-                      description: "Index (1-based) of the selected food stop",
-                    },
-                    questTheme: {
-                      type: "string",
-                      description:
-                        "A catchy theme or title for this quest (e.g., 'Hidden Treasures of the Mission')",
-                    },
-                    questDescription: {
-                      type: "string",
-                      description:
-                        "A brief personalized description of why these locations were chosen",
-                    },
-                  },
-                  required: [
-                    "locationIndices",
-                    "foodStopIndex",
-                    "questTheme",
-                    "questDescription",
-                  ],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: { type: "function", function: { name: "create_quest" } },
-        }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          return new Response(
-            JSON.stringify({ error: "Rate limit exceeded. Please try again." }),
-            {
-              status: 429,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "AI credits exhausted. Please add more credits." }),
-            {
-              status: 402,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
-        const errorText = await response.text();
-        console.error("OpenAI API error:", response.status, errorText);
-        throw new Error(`OpenAI API error: ${response.status}`);
-      }
-
-      const aiResponse = await response.json();
-      const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
-
-      if (!toolCall || toolCall.function.name !== "create_quest") {
-        throw new Error("Unexpected AI response format");
-      }
-
-      questData = JSON.parse(toolCall.function.arguments);
     }
 
-    console.log("AI selected:", questData);
+    console.log("AI selected:", questData, "via", usedProvider);
 
     // ============================================
-    // Step 4: Build the quest response
+    // Step 3: Build the quest response
     // ============================================
     const selectedLocations = (questData.locationIndices || [1, 2, 3, 4, 5])
       .map((idx: number) => availableLocations[idx - 1])
@@ -382,7 +384,7 @@ Respond with ONLY the JSON object containing locationIndices (array of 5 numbers
       foodStop: selectedFoodStop ? dbToAppFoodStop(selectedFoodStop) : null,
       theme: questData.questTheme || "San Francisco Adventure",
       description: questData.questDescription || "Explore the best of San Francisco!",
-      aiProvider,
+      aiProvider: usedProvider,
       progress: {
         currentIndex: 0,
         completed: new Array(selectedLocations.length).fill(false),
@@ -390,7 +392,7 @@ Respond with ONLY the JSON object containing locationIndices (array of 5 numbers
       },
     };
 
-    console.log("Generated quest:", quest.id, quest.theme, "via", aiProvider);
+    console.log("Generated quest:", quest.id, quest.theme, "via", usedProvider);
 
     return new Response(JSON.stringify(quest), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -412,65 +414,6 @@ Respond with ONLY the JSON object containing locationIndices (array of 5 numbers
 // ============================================
 // Helper Functions
 // ============================================
-
-function buildPreferenceText(
-  preferences: UserPreferences,
-  categories: string[]
-): string {
-  const parts = [];
-
-  // Age-based preferences
-  if (preferences.ageRange === "18-25") {
-    parts.push("young adult adventure, instagram-worthy spots, trendy locations");
-  } else if (preferences.ageRange === "26-35") {
-    parts.push("urban exploration, cultural experiences, craft food and drinks");
-  } else if (preferences.ageRange === "36-50") {
-    parts.push("curated experiences, history and architecture, quality dining");
-  } else if (preferences.ageRange === "50+") {
-    parts.push("accessible locations, classic landmarks, comfortable pace");
-  }
-
-  // Budget preferences
-  if (preferences.budget === "budget") {
-    parts.push("free attractions, affordable eats, hidden gems");
-  } else if (preferences.budget === "moderate") {
-    parts.push("good value experiences, local favorites, balanced options");
-  } else if (preferences.budget === "splurge") {
-    parts.push("premium experiences, upscale dining, exclusive spots");
-  }
-
-  // Time preferences
-  if (preferences.timeAvailable === "half-day") {
-    parts.push("quick highlights, concentrated area, efficient route");
-  } else if (preferences.timeAvailable === "full-day") {
-    parts.push("comprehensive tour, multiple neighborhoods, varied experiences");
-  } else if (preferences.timeAvailable === "multi-day") {
-    parts.push("deep exploration, off-the-beaten-path, local secrets");
-  }
-
-  // Mobility
-  if (preferences.mobility === "limited") {
-    parts.push("wheelchair accessible, minimal walking, flat terrain");
-  } else {
-    parts.push("walking friendly, stairs ok, active exploration");
-  }
-
-  // Group size
-  if (preferences.groupSize === "solo") {
-    parts.push("solo traveler friendly, contemplative spots, people watching");
-  } else if (preferences.groupSize === "couple") {
-    parts.push("romantic spots, scenic views, intimate settings");
-  } else if (preferences.groupSize === "small-group") {
-    parts.push("group friendly, photo opportunities, shared experiences");
-  } else if (preferences.groupSize === "family") {
-    parts.push("family friendly, kid-approved, educational and fun");
-  }
-
-  // Categories
-  parts.push(`interested in: ${categories.join(", ")}`);
-
-  return parts.join(" | ");
-}
 
 function mapBudgetToPriceRanges(budget: string): string[] | null {
   switch (budget) {
@@ -499,18 +442,26 @@ function dbToAppLocation(dbLoc: any) {
     shortSummary: dbLoc.short_summary || "",
     fullDescription: dbLoc.full_description || "",
     hints: dbLoc.hints || [],
+    vibe: dbLoc.vibe || "",
+    accessibility: dbLoc.accessibility || false,
+    bestTimeOfDay: dbLoc.best_time_of_day || [],
+    durationMinutes: dbLoc.duration_minutes || 30,
+    difficulty: dbLoc.difficulty || "easy",
+    tags: dbLoc.tags || [],
   };
 }
 
-function dbToAppFoodStop(dbFood: any) {
+function dbToAppFoodStop(dbFs: any) {
   return {
-    id: dbFood.id,
-    name: dbFood.name,
-    cuisine: dbFood.cuisine,
-    priceRange: dbFood.price_range,
-    neighborhood: dbFood.neighborhood,
-    coordinates: { lat: Number(dbFood.lat), lng: Number(dbFood.lng) },
-    recommendations: dbFood.recommendations || [],
-    image: dbFood.image || "",
+    id: dbFs.id,
+    name: dbFs.name,
+    cuisine: dbFs.cuisine,
+    priceRange: dbFs.price_range,
+    neighborhood: dbFs.neighborhood,
+    coordinates: { lat: Number(dbFs.lat), lng: Number(dbFs.lng) },
+    recommendations: dbFs.recommendations || [],
+    image: dbFs.image || "",
+    vibe: dbFs.vibe || "",
+    dietaryOptions: dbFs.dietary_options || [],
   };
 }
