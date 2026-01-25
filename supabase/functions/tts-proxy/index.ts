@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const TTS_BASE_URL = Deno.env.get("TTS_API_URL") || "http://10.196.219.208:9000";
+const TTS_BASE_URL = Deno.env.get("TTS_API_URL") || "https://c257b4e5d3c0.ngrok-free.app";
 
 serve(async (req) => {
   // Handle CORS preflight
