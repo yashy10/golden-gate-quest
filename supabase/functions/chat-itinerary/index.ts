@@ -12,7 +12,6 @@ interface Message {
 
 interface ItineraryRequest {
   type: "generate" | "chat";
-  provider?: "openai" | "dgx";
   messages?: Message[];
   categories: string[];
   preferences: {
@@ -49,26 +48,8 @@ interface ItineraryOption {
   foodStopIndex: number;
 }
 
-// Provider configurations
-const PROVIDERS = {
-  openai: {
-    url: "https://api.openai.com/v1/chat/completions",
-    model: "gpt-4o-mini",
-    getHeaders: () => ({
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
-    }),
-    supportsTools: true,
-  },
-  dgx: {
-    url: "http://192.168.128.247:8022/v1/chat/completions",
-    model: "nemotron-30b",
-    getHeaders: () => ({
-      "Content-Type": "application/json",
-    }),
-    supportsTools: false,
-  },
-};
+const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const MODEL = "google/gemini-2.5-flash";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -79,11 +60,14 @@ serve(async (req) => {
     const requestData: ItineraryRequest = await req.json();
     console.log("Received request:", JSON.stringify(requestData, null, 2));
 
-    const { type, provider = "openai", messages = [], categories, preferences, availableLocations, availableFoodStops, currentItineraries } = requestData;
+    const { type, messages = [], categories, preferences, availableLocations, availableFoodStops, currentItineraries } = requestData;
 
-    const providerConfig = PROVIDERS[provider];
-    const isDGX = provider === "dgx";
-    console.log(`Using provider: ${provider}, model: ${providerConfig.model}`);
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
+    }
+
+    console.log(`Using Lovable AI Gateway with model: ${MODEL}`);
 
     const baseContext = `You are an expert San Francisco tour guide and travel curator. You help create personalized quests/itineraries.
 
@@ -109,37 +93,13 @@ Option 2: ${currentItineraries.option2 ? `${currentItineraries.option2.theme} - 
     let requestBody: Record<string, unknown>;
 
     if (type === "generate") {
-      if (isDGX) {
-        // DGX doesn't support tools - ask for JSON in response
-        const dgxPrompt = `${baseContext}
-
-Generate two distinct and diverse itinerary options for this San Francisco quest.
-
-Each option should have:
-- A unique theme and feel
-- 5 carefully selected locations that flow well together
-- 1 food stop that matches the budget and route
-- Different vibes (e.g., one more adventurous, one more relaxed; one more touristy, one more local)
-
-Make sure the two options are meaningfully different so the user has a real choice.
-
-IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text, DO NOT use any markdown formatting:
-{"option1": {"theme": "Theme Name", "description": "Description", "locationIndices": [1, 2, 3, 4, 5], "foodStopIndex": 1}, "option2": {"theme": "Theme Name", "description": "Description", "locationIndices": [1, 2, 3, 4, 5], "foodStopIndex": 1}}`;
-
-        requestBody = {
-          model: providerConfig.model,
-          max_tokens: 1500,
-          messages: [{ role: "user", content: dgxPrompt }],
-        };
-      } else {
-        // OpenAI with tools
-        requestBody = {
-          model: providerConfig.model,
-          messages: [
-            { role: "system", content: baseContext + "\n\nWhen generating or modifying itineraries, always respond with valid JSON using the tools provided." },
-            {
-              role: "user",
-              content: `Generate two distinct and diverse itinerary options for this San Francisco quest.
+      requestBody = {
+        model: MODEL,
+        messages: [
+          { role: "system", content: baseContext + "\n\nWhen generating or modifying itineraries, always respond with valid JSON using the tools provided." },
+          {
+            role: "user",
+            content: `Generate two distinct and diverse itinerary options for this San Francisco quest.
 
 Each option should have:
 - A unique theme and feel
@@ -148,141 +108,120 @@ Each option should have:
 - Different vibes (e.g., one more adventurous, one more relaxed; one more touristy, one more local)
 
 Make sure the two options are meaningfully different so the user has a real choice.`
-            }
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "create_itinerary_options",
-                description: "Create two distinct itinerary options for the user to choose from",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    option1: {
-                      type: "object",
-                      properties: {
-                        theme: { type: "string", description: "Catchy theme name for this itinerary" },
-                        description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
-                        locationIndices: {
-                          type: "array",
-                          items: { type: "number" },
-                          description: "Array of 5 location indices in optimal order"
-                        },
-                        foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
+          }
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "create_itinerary_options",
+              description: "Create two distinct itinerary options for the user to choose from",
+              parameters: {
+                type: "object",
+                properties: {
+                  option1: {
+                    type: "object",
+                    properties: {
+                      theme: { type: "string", description: "Catchy theme name for this itinerary" },
+                      description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
+                      locationIndices: {
+                        type: "array",
+                        items: { type: "number" },
+                        description: "Array of 5 location indices in optimal order"
                       },
-                      required: ["theme", "description", "locationIndices", "foodStopIndex"]
+                      foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
                     },
-                    option2: {
-                      type: "object",
-                      properties: {
-                        theme: { type: "string", description: "Catchy theme name for this itinerary" },
-                        description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
-                        locationIndices: {
-                          type: "array",
-                          items: { type: "number" },
-                          description: "Array of 5 location indices in optimal order"
-                        },
-                        foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
-                      },
-                      required: ["theme", "description", "locationIndices", "foodStopIndex"]
-                    }
+                    required: ["theme", "description", "locationIndices", "foodStopIndex"]
                   },
-                  required: ["option1", "option2"],
-                  additionalProperties: false
-                }
+                  option2: {
+                    type: "object",
+                    properties: {
+                      theme: { type: "string", description: "Catchy theme name for this itinerary" },
+                      description: { type: "string", description: "Brief description of the vibe and why these locations work together" },
+                      locationIndices: {
+                        type: "array",
+                        items: { type: "number" },
+                        description: "Array of 5 location indices in optimal order"
+                      },
+                      foodStopIndex: { type: "number", description: "Index of the recommended food stop" }
+                    },
+                    required: ["theme", "description", "locationIndices", "foodStopIndex"]
+                  }
+                },
+                required: ["option1", "option2"],
+                additionalProperties: false
               }
             }
-          ],
-          tool_choice: { type: "function", function: { name: "create_itinerary_options" } }
-        };
-      }
+          }
+        ],
+        tool_choice: { type: "function", function: { name: "create_itinerary_options" } }
+      };
     } else {
-      // Chat mode
-      if (isDGX) {
-        // DGX chat mode - ask for JSON response
-        const chatHistory = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-        const dgxChatPrompt = `${baseContext}
-
-Chat history:
-${chatHistory}
-
-Based on the user's latest message, you may need to update the itineraries or just respond conversationally.
-
-IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text, DO NOT use any markdown formatting:
-{"chatResponse": "Your response to the user", "option1": null or {"theme": "...", "description": "...", "locationIndices": [...], "foodStopIndex": ...}, "option2": null or {"theme": "...", "description": "...", "locationIndices": [...], "foodStopIndex": ...}}
-
-Only include option1 or option2 if you are making changes to them, otherwise set them to null.`;
-
-        requestBody = {
-          model: providerConfig.model,
-          max_tokens: 1500,
-          messages: [{ role: "user", content: dgxChatPrompt }],
-        };
-      } else {
-        // OpenAI chat mode with tools
-        requestBody = {
-          model: providerConfig.model,
-          messages: [
-            { role: "system", content: baseContext + "\n\nWhen chatting, be helpful and confirm any changes you make to the itineraries." },
-            ...messages
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "update_itinerary",
-                description: "Update one or both itinerary options based on user request",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    option1: {
-                      type: "object",
-                      description: "Updated option 1 (only include if changing)",
-                      properties: {
-                        theme: { type: "string" },
-                        description: { type: "string" },
-                        locationIndices: { type: "array", items: { type: "number" } },
-                        foodStopIndex: { type: "number" }
-                      }
-                    },
-                    option2: {
-                      type: "object",
-                      description: "Updated option 2 (only include if changing)",
-                      properties: {
-                        theme: { type: "string" },
-                        description: { type: "string" },
-                        locationIndices: { type: "array", items: { type: "number" } },
-                        foodStopIndex: { type: "number" }
-                      }
-                    },
-                    chatResponse: {
-                      type: "string",
-                      description: "Your response to the user explaining changes or answering their question"
+      // Chat mode with tools
+      requestBody = {
+        model: MODEL,
+        messages: [
+          { role: "system", content: baseContext + "\n\nWhen chatting, be helpful and confirm any changes you make to the itineraries." },
+          ...messages
+        ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "update_itinerary",
+              description: "Update one or both itinerary options based on user request",
+              parameters: {
+                type: "object",
+                properties: {
+                  option1: {
+                    type: "object",
+                    description: "Updated option 1 (only include if changing)",
+                    properties: {
+                      theme: { type: "string" },
+                      description: { type: "string" },
+                      locationIndices: { type: "array", items: { type: "number" } },
+                      foodStopIndex: { type: "number" }
                     }
                   },
-                  required: ["chatResponse"],
-                  additionalProperties: false
-                }
+                  option2: {
+                    type: "object",
+                    description: "Updated option 2 (only include if changing)",
+                    properties: {
+                      theme: { type: "string" },
+                      description: { type: "string" },
+                      locationIndices: { type: "array", items: { type: "number" } },
+                      foodStopIndex: { type: "number" }
+                    }
+                  },
+                  chatResponse: {
+                    type: "string",
+                    description: "Your response to the user explaining changes or answering their question"
+                  }
+                },
+                required: ["chatResponse"],
+                additionalProperties: false
               }
             }
-          ],
-          tool_choice: "auto"
-        };
-      }
+          }
+        ],
+        tool_choice: "auto"
+      };
     }
 
-    console.log(`Sending request to ${provider}:`, JSON.stringify(requestBody, null, 2));
+    console.log("Sending request to Lovable AI:", JSON.stringify(requestBody, null, 2));
 
-    const response = await fetch(providerConfig.url, {
+    const response = await fetch(LOVABLE_AI_URL, {
       method: "POST",
-      headers: providerConfig.getHeaders(),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+      },
       body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`${provider} API error:`, response.status, errorText);
+      console.error("Lovable AI error:", response.status, errorText);
 
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
@@ -290,69 +229,41 @@ Only include option1 or option2 if you are making changes to them, otherwise set
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 401) {
-        return new Response(JSON.stringify({ error: "API key invalid." }), {
-          status: 401,
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Payment required, please add funds to your workspace." }), {
+          status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      throw new Error(`${provider} API error: ${response.status} ${errorText}`);
+      throw new Error(`Lovable AI error: ${response.status} ${errorText}`);
     }
 
     const aiResponse = await response.json();
     console.log("AI response:", JSON.stringify(aiResponse, null, 2));
 
-    // Parse the response based on provider
-    if (isDGX) {
-      // DGX - parse JSON from content
-      const content = aiResponse.choices?.[0]?.message?.content || '';
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('Could not parse response from DGX');
-      }
-      const parsed = JSON.parse(jsonMatch[0]);
+    const message = aiResponse.choices?.[0]?.message;
 
-      if (type === "generate") {
-        return new Response(JSON.stringify({
-          type: "itineraries",
-          data: { option1: parsed.option1, option2: parsed.option2 }
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      } else {
-        return new Response(JSON.stringify({
-          type: "update",
-          data: parsed
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    } else {
-      // OpenAI - parse from tool calls or content
-      const message = aiResponse.choices?.[0]?.message;
+    if (message?.tool_calls?.[0]) {
+      const toolCall = message.tool_calls[0];
+      const functionArgs = JSON.parse(toolCall.function.arguments);
 
-      if (message?.tool_calls?.[0]) {
-        const toolCall = message.tool_calls[0];
-        const functionArgs = JSON.parse(toolCall.function.arguments);
-
-        return new Response(JSON.stringify({
-          type: type === "generate" ? "itineraries" : "update",
-          data: functionArgs
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      } else if (message?.content) {
-        return new Response(JSON.stringify({
-          type: "chat",
-          data: { chatResponse: message.content }
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      throw new Error("Unexpected AI response format");
+      return new Response(JSON.stringify({
+        type: type === "generate" ? "itineraries" : "update",
+        data: functionArgs
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } else if (message?.content) {
+      return new Response(JSON.stringify({
+        type: "chat",
+        data: { chatResponse: message.content }
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    throw new Error("Unexpected AI response format");
 
   } catch (error) {
     console.error("chat-itinerary error:", error);
