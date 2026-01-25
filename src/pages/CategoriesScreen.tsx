@@ -102,20 +102,37 @@ Return your selections using the tool provided.`;
 
       // Build request body based on provider
       const requestBody: Record<string, unknown> = {
-        model: isDGX ? 'qwen-vl' : 'gpt-4o-mini',
-        max_tokens: 1000,
+        model: isDGX ? 'nemotron-3n' : 'gpt-4o-mini',
+        // DGX nemotron-3n has 2000 total context limit (input + output)
+        // With ~300 input tokens, we can use ~1600 for output
+        max_tokens: isDGX ? 1600 : 1000,
       };
 
       if (isDGX) {
-        // DGX doesn't support tools - ask for JSON in response
-        const dgxPrompt = `${systemPrompt}
+        // DGX/Nemotron: reasoning model will think first, then output JSON
+        // We give it enough tokens to complete reasoning AND produce JSON at the end
+        const dgxSystemPrompt = `You are a helpful assistant that outputs JSON. After any reasoning, you MUST end your response with a valid JSON object.`;
 
-${userPrompt}
+        const dgxUserPrompt = `Select 5 locations and 1 food stop for a San Francisco quest.
 
-IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text:
-{"locationIndices": [1, 2, 3, 4, 5], "foodStopIndex": 1, "questTheme": "Theme Name", "questDescription": "Description"}`;
+User: ${fullPreferences.ageRange}, ${fullPreferences.budget} budget, ${fullPreferences.timeAvailable}, ${fullPreferences.mobility} mobility, ${fullPreferences.groupSize}
+Categories: ${selectedCategories.join(', ')}
 
-        requestBody.messages = [{ role: 'user', content: dgxPrompt }];
+Locations (pick 5 indices):
+${availableLocations.map((loc, i) => `${i + 1}. ${loc.name} (${loc.neighborhood})`).join('\n')}
+
+Food Stops (pick 1 index):
+${foodStops.map((fs, i) => `${i + 1}. ${fs.name} (${fs.cuisine}, ${fs.priceRange})`).join('\n')}
+
+After your analysis, output EXACTLY this JSON format at the end:
+{"locationIndices": [1, 2, 3, 4, 5], "foodStopIndex": 1, "questTheme": "Theme Name Here", "questDescription": "Brief description here"}`;
+
+        requestBody.messages = [
+          { role: 'system', content: dgxSystemPrompt },
+          { role: 'user', content: dgxUserPrompt },
+        ];
+        // Request JSON output format (supported by OpenAI-compatible APIs)
+        requestBody.response_format = { type: 'json_object' };
       } else {
         // OpenAI supports tools
         requestBody.messages = [
@@ -165,10 +182,18 @@ IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text:
       });
 
       if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error('LLM request failed:', {
+          provider: isDGX ? 'dgx' : 'openai',
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+        });
+
         if (response.status === 429) {
           toast({
             title: "Too many requests",
-            description: "Please wait a moment and try again.",
+            description: errorText || "Please wait a moment and try again.",
             variant: "destructive",
           });
           setIsGenerating(false);
@@ -176,27 +201,36 @@ IMPORTANT: Respond with ONLY a JSON object in this exact format, no other text:
         } else if (response.status === 401) {
           toast({
             title: "API key invalid",
-            description: "Please check your API key.",
+            description: errorText || "Please check your API key.",
             variant: "destructive",
           });
           setIsGenerating(false);
           return;
         }
-        throw new Error('Failed to generate quest');
+        throw new Error(errorText || `Failed to generate quest (HTTP ${response.status})`);
       }
 
       const aiResponse = await response.json();
+      console.log('LLM response:', JSON.stringify(aiResponse, null, 2));
 
       let questData;
       if (isDGX) {
         // Parse JSON from DGX response content
+        // Reasoning models output thinking first, then JSON at the end
         const content = aiResponse.choices?.[0]?.message?.content || '';
-        // Extract JSON from response (handle markdown code blocks if present)
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          throw new Error('Could not parse quest data from response');
+        console.log('DGX content to parse:', content);
+
+        // Find the LAST JSON object in the response (reasoning models put it at the end)
+        const jsonMatches = content.match(/\{[^{}]*"locationIndices"\s*:\s*\[[^\]]+\][^{}]*\}/g);
+        const jsonStr = jsonMatches ? jsonMatches[jsonMatches.length - 1] : null;
+
+        if (!jsonStr) {
+          console.error('DGX response content did not contain valid JSON with locationIndices:', content);
+          throw new Error('Could not parse quest data from DGX response.');
         }
-        questData = JSON.parse(jsonMatch[0]);
+
+        questData = JSON.parse(jsonStr);
+        console.log('Parsed quest data:', questData);
       } else {
         // Parse from OpenAI tool call
         const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
