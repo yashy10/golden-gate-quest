@@ -14,7 +14,8 @@ interface UseTTSReturn extends TTSState {
   stop: () => void;
 }
 
-const TTS_BASE_URL = import.meta.env.VITE_TTS_API_URL || 'http://10.196.219.208:9000';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 export function useTTS(): UseTTSReturn {
   const [state, setState] = useState<TTSState>({
@@ -42,17 +43,19 @@ export function useTTS(): UseTTSReturn {
   }, []);
 
   const generateSpeech = async (text: string): Promise<Blob> => {
-    const formData = new FormData();
-    formData.append('text', text);
-    formData.append('voice_url', 'alba');
-
-    const response = await fetch(`${TTS_BASE_URL}/tts`, {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/tts-proxy`, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ text, voice_url: 'alba' }),
     });
 
     if (!response.ok) {
-      throw new Error('TTS generation failed');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'TTS generation failed');
     }
 
     return await response.blob();
