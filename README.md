@@ -42,7 +42,7 @@ SF Quest brings San Francisco's cultural heritage to life by:
 - Diffusion Models (img2img)
 
 **Infrastructure:**
-- Supabase (PostgreSQL)
+- Supabase [PostgreSQL]
 - OpenAI API
 - PWA Support
 
